@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --navy-900: #040b1d;
+  --navy-800: #0a1533;
+  --navy-700: #13234f;
+  --navy-600: #1a3467;
+  --card-bg: rgba(13, 24, 56, 0.74);
+  --card-border: rgba(125, 211, 252, 0.18);
+  --sky-1: #0f4cbd;
+  --sky-2: #1375dd;
+  --sky-3: #27b5f5;
+  --accent: #7dd3fc;
+  --accent-2: #22d3ee;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --text-1: #e8f4ff;
+  --text-2: #afc8e8;
+  --text-3: #7d96bb;
+  --r-xl: 24px;
+  --r-lg: 16px;
+  --r-md: 12px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(1100px 500px at 8% -10%, rgba(34, 211, 238, 0.2), transparent 60%),
+    radial-gradient(900px 440px at 100% 0%, rgba(59, 130, 246, 0.28), transparent 62%),
+    radial-gradient(700px 360px at 50% 120%, rgba(16, 185, 129, 0.12), transparent 68%),
+    linear-gradient(180deg, #040b1d 0%, #06112a 34%, #040a1a 100%);
+  color: var(--text-1);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  letter-spacing: 0.01em;
+}
+
+#root {
+  min-height: 100vh;
+}
