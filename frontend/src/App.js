@@ -6,6 +6,7 @@ import AQICard from "./components/AQICard";
 import Navbar from "./components/Navbar";
 import AQIMap from "./components/AQIMap";
 import AboutPage from "./components/AboutPage";
+import NewsPage from "./components/NewsPage";
 
 function getAqiColorClass(aqi) {
   if (!aqi) return "";
@@ -165,6 +166,12 @@ function App() {
                 aqiData={aqiData}
                 locationName={locationName}
               />
+            </div>
+          )}
+
+          {currentPage === "news" && (
+            <div className="page-wrapper main-content">
+              <NewsPage theme={theme} />
             </div>
           )}
 

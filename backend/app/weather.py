@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import xml.etree.ElementTree as ET
+import html
 
 app = FastAPI()
 
@@ -156,3 +158,73 @@ def get_aqi(lat: float, lon: float):
     }
 
     return aqi_data
+
+# ✅ FETCH NEWS FROM RSS FEEDS
+def parse_rss(url, limit=10):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            print(f"Error fetching RSS {url}: Status {response.status_code}")
+            return []
+            
+        root = ET.fromstring(response.content.strip())
+        # findall(".//item") works regardless of nested structure (rss -> channel -> item)
+        items = root.findall(".//item")
+        
+        news_list = []
+        for item in items[:limit]:
+            # findtext is a shortcut for item.find(tag).text
+            title = item.findtext("title", "No Title")
+            link = item.findtext("link", "#")
+            description = item.findtext("description", "")
+            pub_date = item.findtext("pubDate", "")
+            
+            # Extract Image URL
+            image_url = None
+            
+            # 1. Try to find media:content
+            media_content = item.findall('.//{http://search.yahoo.com/mrss/}content')
+            if media_content and media_content[0].get('url'):
+                image_url = media_content[0].get('url')
+                
+            # 2. Try to find img src in description
+            if not image_url:
+                import re
+                img_match = re.search(r'<img[^>]+src="([^">]+)"', description)
+                if img_match:
+                    src = img_match.group(1)
+                    # Ignore tiny tracking images or broken thumbnails from Google News
+                    if "news.google.com" not in src:
+                        image_url = src
+
+            # Remove HTML tags from description
+            clean_desc = re.sub('<[^<]+?>', '', description)
+            # Unescape HTML entities
+            clean_title = html.unescape(title)
+            clean_desc = html.unescape(clean_desc)
+
+            news_list.append({
+                "title": clean_title,
+                "link": link,
+                "description": clean_desc[:200] + "..." if len(clean_desc) > 200 else clean_desc,
+                "pubDate": pub_date,
+                "imageUrl": image_url
+            })
+        return news_list
+    except Exception as e:
+        print(f"Error parsing RSS {url}: {e}")
+        return []
+
+@app.get("/news")
+def get_news(region: str = "world"):
+    if region.lower() == "india":
+        # Google News Search for India Environment/Pollution
+        url = "https://news.google.com/rss/search?q=environment+pollution+india&hl=en-IN&gl=IN&ceid=IN:en"
+    else:
+        # Earth.org Feed for Global Environment News
+        url = "https://earth.org/feed/"
+        
+    return {"region": region, "news": parse_rss(url)}

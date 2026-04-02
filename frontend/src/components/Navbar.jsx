@@ -1,93 +1,6 @@
 import React from "react";
+import logo from "../logo.svg";
 
-/* ── AirVintage Logo SVG — Premium Redesign ── */
-function AVLogo() {
-  return (
-    <svg
-      width="40" height="40" viewBox="0 0 40 40" fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="AirVintage logo"
-      className="av-logo-svg"
-    >
-      <defs>
-        {/* Primary sky-to-mint gradient */}
-        <linearGradient id="avG1" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#7dd3fc" />
-          <stop offset="50%" stopColor="#38bdf8" />
-          <stop offset="100%" stopColor="#34d399" />
-        </linearGradient>
-        {/* Dimmer fill background */}
-        <radialGradient id="avG2" cx="50%" cy="40%" r="55%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="#0f172a" stopOpacity="0.0" />
-        </radialGradient>
-        {/* Inner glow disc */}
-        <radialGradient id="avGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-        </radialGradient>
-        <filter id="avBlur" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="1.5" />
-        </filter>
-      </defs>
-
-      {/* ── Outer ring with gradient stroke ── */}
-      <circle cx="20" cy="20" r="18.5"
-        fill="url(#avG2)"
-        stroke="url(#avG1)" strokeWidth="1.4"
-        strokeDasharray="4 2.5"
-        strokeLinecap="round"
-      />
-
-      {/* ── Inner solid ring ── */}
-      <circle cx="20" cy="20" r="14"
-        fill="none"
-        stroke="url(#avG1)" strokeWidth="0.9" strokeOpacity="0.5"
-      />
-
-      {/* ── Glow halo (blurred) ── */}
-      <circle cx="20" cy="20" r="13"
-        fill="url(#avGlow)"
-        filter="url(#avBlur)"
-      />
-
-      {/* ── Air-flow arcs (wind waves) ── */}
-      {/* Top arc */}
-      <path
-        d="M10.5 15 Q14 11.5 20 13 Q26 14.5 29.5 15"
-        stroke="url(#avG1)" strokeWidth="1.2"
-        strokeLinecap="round" fill="none" strokeOpacity="0.65"
-      />
-      {/* Bottom arc */}
-      <path
-        d="M10.5 25 Q14 28.5 20 27 Q26 25.5 29.5 25"
-        stroke="url(#avG1)" strokeWidth="1.2"
-        strokeLinecap="round" fill="none" strokeOpacity="0.65"
-      />
-
-      {/* ── AV Monogram ── */}
-      {/* A — left half */}
-      <path
-        d="M13 26 L16.5 14 L18.2 19.5"
-        stroke="url(#avG1)" strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" fill="none"
-      />
-      {/* A crossbar */}
-      <line x1="13.8" y1="22" x2="17.8" y2="22"
-        stroke="url(#avG1)" strokeWidth="1.6" strokeLinecap="round"
-      />
-      {/* V */}
-      <path
-        d="M18.2 14 L21.5 26 L25 14"
-        stroke="url(#avG1)" strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" fill="none"
-      />
-
-      {/* ── Centre dot ── */}
-      <circle cx="20" cy="20" r="1.5" fill="url(#avG1)" opacity="0.8" />
-    </svg>
-  );
-}
 
 function Navbar({ currentPage, setCurrentPage, locationName, theme, setTheme, onRefresh, loading }) {
   const city = locationName?.city || null;
@@ -95,6 +8,7 @@ function Navbar({ currentPage, setCurrentPage, locationName, theme, setTheme, on
   const navLinks = [
     { id: "dashboard", label: "Dashboard" },
     { id: "map",       label: "Map"       },
+    { id: "news",      label: "News"      },
     { id: "about",     label: "About"     },
   ];
 
@@ -102,7 +16,7 @@ function Navbar({ currentPage, setCurrentPage, locationName, theme, setTheme, on
     <nav className="navbar">
       {/* Brand */}
       <div className="nav-logo" onClick={() => setCurrentPage("dashboard")}>
-        <AVLogo />
+        <img src={logo} alt="AirVintage logo" className="av-logo-img" />
         <span className="nav-logo-text">AirVintage</span>
         <span className="nav-badge">BETA</span>
       </div>
