@@ -51,8 +51,8 @@ function HeroBackground({ aqiColor }) {
 }
 
 function Dashboard() {
-	const [coordinates, setCoordinates] = useState(null);
-	const [locationName, setLocationName] = useState(null);
+	const [coordinates, setCoordinates] = useState({ lat: 19.0760, lon: 72.8777 });
+	const [locationName, setLocationName] = useState({ city: "Mumbai" });
 	const [weatherData, setWeatherData] = useState(null);
 	const [aqiData, setAqiData] = useState(null);
 	const [loading, setLoading] = useState(false);
