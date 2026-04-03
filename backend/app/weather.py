@@ -1,10 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import xml.etree.ElementTree as ET
 import html
+from sqlalchemy.orm import Session
+
+# Import our new database modules
+from app.database.database import engine, Base, get_db
+from app.database import schemas, crud
 
 app = FastAPI()
+
+# Automatically create all tables (if they don't exist)
+if engine:
+    Base.metadata.create_all(bind=engine)
 
 # ✅ Allow frontend access
 origins = [
@@ -87,7 +96,7 @@ def get_hourly_value_for_current_time(hourly_times, hourly_values, current_time,
 
 # ✅ MAIN WEATHER API
 @app.get("/weather")
-def get_weather(lat: float, lon: float):
+def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
 
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,visibility&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
 
@@ -123,6 +132,21 @@ def get_weather(lat: float, lon: float):
         "is_day": current.get("is_day", 1)
     }
 
+    # Save to PostgreSQL (if DB is active)
+    if db:
+        try:
+            # 1. Create Location
+            loc_schema = schemas.LocationCreate(latitude=lat, longitude=lon)
+            db_loc = crud.create_location(db, loc_schema)
+            # 2. Create Environmental Data
+            env_schema = schemas.EnvironmentalDataCreate(
+                temperature=weather["temperature"],
+                humidity=weather["humidity"]
+            )
+            crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
+        except Exception as e:
+            print(f"Failed to save weather data to DB: {e}")
+
     return weather
 
 
@@ -137,7 +161,7 @@ def get_aqi_status(aqi):
 
 # ✅ MAIN AQI API (Using Open-Meteo Air Quality)
 @app.get("/aqi")
-def get_aqi(lat: float, lon: float):
+def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
     url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
     
     response = requests.get(url)
@@ -156,6 +180,29 @@ def get_aqi(lat: float, lon: float):
         "sulphur_dioxide": current.get("sulphur_dioxide", 0),
         "ozone": current.get("ozone", 0)
     }
+
+    # Save to PostgreSQL (if DB is active)
+    if db:
+        try:
+            # 1. Create Location
+            loc_schema = schemas.LocationCreate(latitude=lat, longitude=lon)
+            db_loc = crud.create_location(db, loc_schema)
+            # 2. Create Environmental Data
+            env_schema = schemas.EnvironmentalDataCreate(
+                pm2_5=aqi_data["pm2_5"],
+                pm10=aqi_data["pm10"]
+            )
+            db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
+            
+            # 3. Create Prediction entry to map the API status logic back to health alerts
+            pred_schema = schemas.PredictionCreate(
+                predicted_aqi=us_aqi,
+                aqi_category=aqi_data["status"]
+            )
+            crud.create_prediction(db, pred_schema, data_id=db_env.data_id)
+            
+        except Exception as e:
+            print(f"Failed to save AQI data to DB: {e}")
 
     return aqi_data
 

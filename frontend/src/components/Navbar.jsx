@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import logo from "../logo.svg";
-
 
 function Navbar({ currentPage, setCurrentPage, locationName, theme, setTheme, onRefresh, loading }) {
   const city = locationName?.city || null;
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navLinks = [
     { id: "dashboard", label: "Dashboard" },
@@ -77,7 +77,42 @@ function Navbar({ currentPage, setCurrentPage, locationName, theme, setTheme, on
             </svg>
           )}
         </button>
+        <button
+          className="nav-icon-btn mobile-menu-toggle"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          title="Toggle Menu"
+        >
+          {isMobileMenuOpen ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          )}
+        </button>
       </div>
+
+      {isMobileMenuOpen && (
+        <div className="mobile-nav-menu">
+          {navLinks.map((link) => (
+            <button
+              key={link.id}
+              className={`mobile-nav-link ${currentPage === link.id ? "active" : ""}`}
+              onClick={() => {
+                setCurrentPage(link.id);
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              {link.label}
+            </button>
+          ))}
+        </div>
+      )}
     </nav>
   );
 }
