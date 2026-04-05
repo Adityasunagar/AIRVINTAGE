@@ -4,17 +4,40 @@ const NewsPage = ({ theme }) => {
   const [region, setRegion] = useState("india");
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchNews = useCallback(async (selectedRegion) => {
     setLoading(true);
+    setError(null);
+    console.log(`🔄 [NewsPage] Fetching ${selectedRegion} news...`);
     try {
       const response = await fetch(`http://127.0.0.1:8000/news?region=${selectedRegion}`);
+      console.log(`📊 API Response Status: ${response.status}`);
+      
       if (response.ok) {
         const data = await response.json();
-        setNews(data.news);
+        console.log(`✅ API Response Data:`, data);
+        console.log(`📈 Total articles received: ${data.count || 0}`);
+        
+        if (data.news && data.news.length > 0) {
+          console.log(`🎯 First article:`, data.news[0]);
+        }
+        
+        setNews(data.news || []);
+        
+        if (!data.news || data.news.length === 0) {
+          console.warn(`⚠️ API returned 0 articles for region: ${selectedRegion}`);
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ HTTP Error ${response.status}: ${errorText}`);
+        setError(`Failed to fetch ${selectedRegion} news (HTTP ${response.status})`);
+        setNews([]);
       }
     } catch (error) {
-      console.error("Error fetching news:", error);
+      console.error("❌ Network Error:", error);
+      setError("Unable to connect to news service. Please check your internet connection and backend is running.");
+      setNews([]);
     } finally {
       setLoading(false);
     }
@@ -64,14 +87,41 @@ const NewsPage = ({ theme }) => {
         </div>
       </header>
 
-      <div className="news-grid">
-        {loading ? (
-          <div className="news-loading">
-            <div className="spinner"></div>
-            <p>Fetching latest reports...</p>
+      {loading ? (
+        <div className="skeleton-news-grid">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="skeleton-news-card">
+              <div className="skeleton-news-image" />
+              <div className="skeleton-news-content">
+                <div className="skeleton-news-title" />
+                <div className="skeleton-news-desc" />
+                <div className="skeleton-news-desc" />
+                <div className="skeleton-news-desc" />
+                <div 
+                  className="skeleton-news-desc" 
+                  style={{ marginTop: "12px", width: "50%" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="news-grid">
+          <div className="news-error">
+            <div className="error-icon">⚠️</div>
+            <h3>Unable to Load News</h3>
+            <p>{error}</p>
+            <button 
+              className="retry-btn"
+              onClick={() => fetchNews(region)}
+            >
+              Try Again
+            </button>
           </div>
-        ) : news.length > 0 ? (
-          news.map((item, index) => (
+        </div>
+      ) : news.length > 0 ? (
+        <div className="news-grid">
+          {news.map((item, index) => (
             <article key={index} className="news-card">
               <div className="news-image-wrapper">
                 <img 
@@ -100,13 +150,21 @@ const NewsPage = ({ theme }) => {
                 </a>
               </div>
             </article>
-          ))
-        ) : (
+          ))}
+        </div>
+      ) : (
+        <div className="news-grid">
           <div className="news-empty">
-            <p>No news available at the moment. Please try again later.</p>
+            <p>No news available at the moment.</p>
+            <button 
+              className="retry-btn"
+              onClick={() => fetchNews(region)}
+            >
+              Refresh
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

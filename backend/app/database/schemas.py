@@ -20,6 +20,31 @@ class Location(LocationBase):
 
 
 # =======================
+# Weather Schemas
+# =======================
+class WeatherBase(BaseModel):
+    temperature: Optional[float] = None
+    feels_like: Optional[float] = None
+    condition: Optional[str] = None
+    humidity: Optional[float] = None
+    pressure: Optional[float] = None
+    wind_speed: Optional[float] = None
+    cloud_cover: Optional[int] = None
+    visibility: Optional[float] = None
+    precipitation: Optional[float] = None
+
+class WeatherCreate(WeatherBase):
+    pass
+
+class Weather(WeatherBase):
+    weather_id: int
+    location_id: int
+    fetched_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# =======================
 # Environmental Data Schemas
 # =======================
 class EnvironmentalDataBase(BaseModel):

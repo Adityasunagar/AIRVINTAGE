@@ -5,7 +5,10 @@ import WeatherCard from "../components/WeatherCard";
 import AQICard from "../components/AQICard";
 import Navbar from "../components/Navbar";
 import AQIMap from "../components/AQIMap";
+import DashboardMapCard from "../components/DashboardMapCard";
 import AboutPage from "../components/AboutPage";
+import SkeletonScreen from "../components/SkeletonScreen";
+import { useWeatherBackground } from "../hooks/useWeatherBackground";
 
 function getAqiColorClass(aqi) {
 	if (!aqi) return "";
@@ -55,7 +58,7 @@ function Dashboard() {
 	const [locationName, setLocationName] = useState({ city: "Mumbai" });
 	const [weatherData, setWeatherData] = useState(null);
 	const [aqiData, setAqiData] = useState(null);
-	const [loading, setLoading] = useState(false);
+	const [loading, setLoading] = useState(true);
 	const [currentPage, setCurrentPage] = useState("dashboard");
 	const [theme, setTheme] = useState("dark");
 
@@ -95,30 +98,43 @@ function Dashboard() {
 		document.body.className = theme;
 	}, [theme]);
 
+	// Use production-grade weather background hook
+	useWeatherBackground(weatherData);
+
 	const aqiClass = getAqiColorClass(aqiData?.aqi);
 
 	return (
 		<div className={`App ${theme}`}>
 			<div className="sky-background" data-theme={theme}>
+				{/* Animated Ambient Background Glows */}
+				<div className="ambient-orb orb-1"></div>
+				<div className="ambient-orb orb-2"></div>
+				<div className="ambient-orb orb-3"></div>
+				
 				<div className="stars" />
 				<div className="clouds" />
 				{theme === "light" && <div className="day-atmosphere" />}
 			</div>
 
+			<Navbar
+				currentPage={currentPage}
+				setCurrentPage={setCurrentPage}
+				locationName={locationName}
+				theme={theme}
+				setTheme={setTheme}
+				onRefresh={() => fetchData(coordinates)}
+				loading={loading || !coordinates}
+			/>
+
 			{!coordinates ? (
-				<LocationDetector setCoordinates={setCoordinates} setLocationName={setLocationName} />
+				<>
+					<SkeletonScreen />
+					<LocationDetector setCoordinates={setCoordinates} setLocationName={setLocationName} />
+				</>
+			) : loading ? (
+				<SkeletonScreen />
 			) : (
 				<>
-					<Navbar
-						currentPage={currentPage}
-						setCurrentPage={setCurrentPage}
-						locationName={locationName}
-						theme={theme}
-						setTheme={setTheme}
-						onRefresh={() => fetchData(coordinates)}
-						loading={loading}
-					/>
-
 					{currentPage === "dashboard" && (
 						<div className="app-content-wrapper">
 							<div className={`premium-hero ${aqiClass}`}>
@@ -138,12 +154,7 @@ function Dashboard() {
 									}
 								/>
 
-								{loading ? (
-									<div className="hero-loading">
-										<div className="spinner modal-spinner" style={{ margin: "0 auto 12px" }} />
-										Analyzing atmosphere...
-									</div>
-								) : aqiData && weatherData ? (
+								{aqiData && weatherData ? (
 									<>
 										<div className="hero-aqi-label">Air Quality Index</div>
 										<div className="hero-aqi-value">{aqiData.aqi}</div>
@@ -161,6 +172,13 @@ function Dashboard() {
 							<main className="main-content premium-main">
 								{aqiData && <AQICard aqiData={aqiData} />}
 								{weatherData && <WeatherCard weatherData={weatherData} />}
+								{coordinates && aqiData && (
+									<DashboardMapCard
+										coordinates={coordinates}
+										aqiData={aqiData}
+										setCurrentPage={setCurrentPage}
+									/>
+								)}
 							</main>
 						</div>
 					)}
