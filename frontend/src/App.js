@@ -5,6 +5,7 @@ import WeatherCard from "./components/WeatherCard";
 import AQICard from "./components/AQICard";
 import Navbar from "./components/Navbar";
 import AQIMap from "./components/AQIMap";
+import DashboardMapCard from "./components/DashboardMapCard";
 import AboutPage from "./components/AboutPage";
 import NewsPage from "./components/NewsPage";
 
@@ -59,7 +60,28 @@ function App() {
   const [weatherData, setWeatherData] = useState(null);
   const [aqiData, setAqiData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState("dashboard");
+  const [currentPage, _setCurrentPage] = useState(() => {
+    // Get the initial page from the path (e.g. /news -> 'news')
+    const path = window.location.pathname.replace("/", "");
+    return ["dashboard", "map", "news", "about"].includes(path) ? path : "dashboard";
+  });
+
+  // Handle browser back/forward buttons seamlessly
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname.replace("/", "");
+      _setCurrentPage(["dashboard", "map", "news", "about"].includes(path) ? path : "dashboard");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const setCurrentPage = (page) => {
+    _setCurrentPage(page);
+    // Add to history stack without reloading the page
+    window.history.pushState({}, "", `/${page === "dashboard" ? "" : page}`);
+  };
+
   const [theme, setTheme] = useState("dark");
 
   const fetchData = useCallback(async (coords) => {
@@ -155,6 +177,13 @@ function App() {
               <main className="main-content premium-main">
                 {aqiData && <AQICard aqiData={aqiData} />}
                 {weatherData && <WeatherCard weatherData={weatherData} />}
+                {coordinates && aqiData && (
+                  <DashboardMapCard
+                    coordinates={coordinates}
+                    aqiData={aqiData}
+                    setCurrentPage={setCurrentPage}
+                  />
+                )}
               </main>
             </div>
           )}

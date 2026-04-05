@@ -6,14 +6,12 @@ function AQICard({ aqiData }) {
     return (
         <div className="panel animate-in">
             <div className="panel-header">
-                <div className="panel-icon">🍃</div>
                 <span className="panel-title">Air Quality Pollutants</span>
             </div>
             
             <div className="details-grid">
                 {/* PM2.5 */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🦠</div>
                     <div className="detail-card-label">PM2.5</div>
                     <div className="detail-card-value">
                         {aqiData.pm2_5}<span className="detail-card-unit"> μg/m³</span>
@@ -26,7 +24,6 @@ function AQICard({ aqiData }) {
 
                 {/* PM10 */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🌫️</div>
                     <div className="detail-card-label">PM10</div>
                     <div className="detail-card-value">
                         {aqiData.pm10}<span className="detail-card-unit"> μg/m³</span>
@@ -39,7 +36,6 @@ function AQICard({ aqiData }) {
 
                 {/* Carbon Monoxide */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🚗</div>
                     <div className="detail-card-label">CO</div>
                     <div className="detail-card-value">
                         {aqiData.carbon_monoxide}<span className="detail-card-unit"> μg/m³</span>
@@ -52,7 +48,6 @@ function AQICard({ aqiData }) {
 
                 {/* Nitrogen Dioxide */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🏭</div>
                     <div className="detail-card-label">NO₂</div>
                     <div className="detail-card-value">
                         {aqiData.nitrogen_dioxide}<span className="detail-card-unit"> μg/m³</span>
@@ -65,7 +60,6 @@ function AQICard({ aqiData }) {
 
                 {/* Ozone */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🛡️</div>
                     <div className="detail-card-label">O₃</div>
                     <div className="detail-card-value">
                         {aqiData.ozone}<span className="detail-card-unit"> μg/m³</span>
@@ -78,7 +72,6 @@ function AQICard({ aqiData }) {
 
                 {/* Sulphur Dioxide */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🌋</div>
                     <div className="detail-card-label">SO₂</div>
                     <div className="detail-card-value">
                         {aqiData.sulphur_dioxide}<span className="detail-card-unit"> μg/m³</span>

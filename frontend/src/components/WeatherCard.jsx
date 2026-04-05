@@ -1,14 +1,6 @@
 import React from "react";
 
-const CONDITION_EMOJI = {
-    "Clear": "☀️", "Clear Sky": "☀️", "Sunny": "☀️",
-    "Hot": "🌡️", "Warm": "🌤️", "Partly Cloudy": "⛅",
-    "Cloudy": "☁️", "Overcast": "☁️", "Rainy": "🌧️",
-    "Light Rain": "🌦️", "Heavy Rain": "🌧️", "Drizzle": "🌦️",
-    "Storm": "⛈️", "Snow": "❄️", "Fog": "🌫️",
-};
 
-function getEmoji(condition) { return CONDITION_EMOJI[condition] ?? "🌡️"; }
 
 function getVisibilityDesc(v) {
     if (v === undefined || v === null) return "No data";
@@ -42,23 +34,20 @@ function getWindDirDeg(dir) {
 
 function WeatherCard({ weatherData }) {
     if (!weatherData) return null;
-    const emoji = getEmoji(weatherData.condition);
     const windDeg = getWindDirDeg(weatherData.wind_direction);
 
     return (
         <div className="panel animate-in" style={{ animationDelay: '0.1s' }}>
             <div className="panel-header">
-                <div className="panel-icon">☁️</div>
                 <span className="panel-title">Weather Details</span>
                 <div className="panel-condition-badge">
-                    {emoji} {weatherData.condition}
+                    {weatherData.condition}
                 </div>
             </div>
             <div className="details-grid">
 
                 {/* Humidity */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">💧</div>
                     <div className="detail-card-label">Humidity</div>
                     <div className="detail-card-value">
                         {weatherData.humidity}<span className="detail-card-unit">%</span>
@@ -71,7 +60,6 @@ function WeatherCard({ weatherData }) {
 
                 {/* Wind Speed */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">💨</div>
                     <div className="detail-card-label">Wind Speed</div>
                     <div className="detail-card-value">
                         {weatherData.wind_speed}<span className="detail-card-unit"> km/h</span>
@@ -84,7 +72,6 @@ function WeatherCard({ weatherData }) {
 
                 {/* Visibility */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">👁️</div>
                     <div className="detail-card-label">Visibility</div>
                     <div className="detail-card-value">
                         {weatherData.visibility}<span className="detail-card-unit"> km</span>
@@ -97,7 +84,6 @@ function WeatherCard({ weatherData }) {
 
                 {/* Temperature */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🌡️</div>
                     <div className="detail-card-label">Temperature</div>
                     <div className="detail-card-value">
                         {weatherData.temperature}<span className="detail-card-unit">°C</span>
@@ -112,7 +98,6 @@ function WeatherCard({ weatherData }) {
 
                 {/* Wind Direction */}
                 <div className="detail-card">
-                    <div className="detail-card-icon">🧭</div>
                     <div className="detail-card-label">Wind Direction</div>
                     <div className="detail-card-value">{weatherData.wind_direction}</div>
                     <div className="wind-compass">
@@ -127,14 +112,13 @@ function WeatherCard({ weatherData }) {
                 </div>
 
                 {/* Condition card */}
-                <div className="detail-card condition-static-card">
-                    <div className="condition-emoji-big">{emoji}</div>
-                    <div className="detail-card-label" style={{ marginTop: 8 }}>Condition</div>
+                <div className="detail-card">
+                    <div className="detail-card-label">Condition</div>
                     <div className="detail-card-value" style={{ fontSize: '1.1rem', lineHeight: 1.2 }}>
                         {weatherData.condition}
                     </div>
-                    <div className="detail-card-desc" style={{ marginTop: 6 }}>
-                        {weatherData.is_day === 1 ? "☀️ Daytime" : "🌙 Nighttime"}
+                    <div className="detail-card-desc">
+                        {weatherData.is_day === 1 ? "Daytime" : "Nighttime"}
                     </div>
                 </div>
 

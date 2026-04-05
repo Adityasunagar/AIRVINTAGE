@@ -11,6 +11,16 @@ def create_location(db: Session, location: schemas.LocationCreate):
     db.refresh(db_location)
     return db_location
 
+def create_weather(db: Session, weather: schemas.WeatherCreate, location_id: int):
+    db_weather = models.Weather(
+        **weather.model_dump(),
+        location_id=location_id
+    )
+    db.add(db_weather)
+    db.commit()
+    db.refresh(db_weather)
+    return db_weather
+
 def create_environmental_data(db: Session, data: schemas.EnvironmentalDataCreate, location_id: int):
     db_env_data = models.EnvironmentalData(
         **data.model_dump(),

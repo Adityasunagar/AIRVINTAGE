@@ -17,22 +17,93 @@ function LocationDetector({ setCoordinates, setLocationName }) {
                 const lat = pos.coords.latitude.toFixed(5);
                 const lon = pos.coords.longitude.toFixed(5);
                 
+                console.log(`📌 Your exact coordinates: ${lat}, ${lon}`);
+                
                 try {
-                    // Reverse geocode to get human readable city
-                    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+                    // Use Nominatim (OpenStreetMap) - better for precise location names
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+                        headers: {'Accept-Language': 'en'}
+                    });
                     const data = await res.json();
                     
-                    const city = data.city || data.locality;
-                    const state = data.principalSubdivision;
-                    const country = data.countryName || data.countryCode;
+                    console.log("🌍 Full Nominatim Response:", data);
+                    console.log("📊 ALL Address Components Available:", data.address);
+                    
+                    // Display all components with their exact values
+                    if (data.address) {
+                        console.group("🔍 Detailed Address Breakdown:");
+                        Object.entries(data.address).forEach(([key, value]) => {
+                            console.log(`  ${key}: "${value}"`);
+                        });
+                        console.groupEnd();
+                    }
+                    
+                    // Use the 'name' field if available (most specific), then fallback to address components
+                    // 'name' is typically the most precise location name from OSM data
+                    let locationName_value = data.name;
+                    let source = "name";
+                    
+                    // If no name, try address components in order of specificity
+                    if (!locationName_value && data.address) {
+                        const address = data.address;
+                        const priority = [
+                            'hamlet',           // Smallest unit - specific hamlet/locality
+                            'village',
+                            'town',
+                            'suburb',
+                            'village_block',
+                            'municipality', 
+                            'city',
+                            'county',
+                            'state'
+                        ];
+                        
+                        for (let component of priority) {
+                            if (address[component]) {
+                                locationName_value = address[component];
+                                source = component;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!locationName_value) {
+                        locationName_value = 'Local Region';
+                        source = 'fallback';
+                    }
+                    
+                    const state = data.address?.state || '';
+                    const country = data.address?.country || '';
+                    
+                    console.log(`✅ SELECTED: "${locationName_value}" (from: ${source})`);
+                    console.log(`📍 Map Location: ${locationName_value}, ${state}, ${country}`);
+                    console.log(`🎯 This should match the location shown on your map marker`);
                     
                     setLocationName({
-                        city: city || 'Local Region',
-                        state: state || '',
-                        country: country || ''
+                        city: locationName_value,
+                        state: state,
+                        country: country
                     });
                 } catch (err) {
-                    setLocationName({ city: "Unknown Area", state: "", country: ""});
+                    console.error("❌ Nominatim Error:", err);
+                    // Fallback to BigDataCloud
+                    try {
+                        const fallbackRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+                        const fallbackData = await fallbackRes.json();
+                        console.log("📍 Fallback - BigDataCloud Response:", fallbackData);
+                        
+                        const locationName_value = fallbackData.village || fallbackData.town || fallbackData.locality || fallbackData.city || 'Local Region';
+                        console.log(`✅ Using Fallback: "${locationName_value}"`);
+                        
+                        setLocationName({
+                            city: locationName_value,
+                            state: fallbackData.principalSubdivision || '',
+                            country: fallbackData.countryName || ''
+                        });
+                    } catch (fallbackErr) {
+                        console.error("❌ All APIs failed:", fallbackErr);
+                        setLocationName({ city: "Unknown Area", state: "", country: ""});
+                    }
                 }
 
                 setCoordinates({ lat, lon });

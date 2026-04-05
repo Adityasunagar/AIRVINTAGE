@@ -14,6 +14,28 @@ class Location(Base):
     
     # Relationships
     environmental_data = relationship("EnvironmentalData", back_populates="location")
+    weather_data = relationship("Weather", back_populates="location")
+
+
+class Weather(Base):
+    __tablename__ = "weather"
+    
+    weather_id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("locations.location_id"))
+    
+    temperature = Column(Float)
+    feels_like = Column(Float)
+    condition = Column(String)
+    humidity = Column(Float)
+    pressure = Column(Float)
+    wind_speed = Column(Float)
+    cloud_cover = Column(Integer)
+    visibility = Column(Float)
+    precipitation = Column(Float)
+    fetched_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    location = relationship("Location", back_populates="weather_data")
 
 
 class EnvironmentalData(Base):
