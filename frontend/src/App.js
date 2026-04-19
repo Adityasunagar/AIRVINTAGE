@@ -8,6 +8,8 @@ import AQIMap from "./components/AQIMap";
 import DashboardMapCard from "./components/DashboardMapCard";
 import AboutPage from "./components/AboutPage";
 import NewsPage from "./components/NewsPage";
+import SkeletonScreen from "./components/SkeletonScreen";
+
 
 function getAqiColorClass(aqi) {
   if (!aqi) return "";
@@ -141,6 +143,9 @@ function App() {
 
           {/* ── Page Routing ── */}
           {currentPage === "dashboard" && (
+            loading ? (
+              <SkeletonScreen />
+            ) : (
             <div className="app-content-wrapper">
               {/* ── AQI Hero ── */}
               <div className={`premium-hero ${aqiClass}`}>
@@ -155,12 +160,7 @@ function App() {
                   ) : "rgba(56,189,248,0.4)"
                 } />
 
-                {loading ? (
-                  <div className="hero-loading">
-                    <div className="spinner modal-spinner" style={{ margin: "0 auto 12px" }}></div>
-                    Analyzing atmosphere…
-                  </div>
-                ) : aqiData && weatherData ? (
+                {aqiData && weatherData ? (
                   <>
                     <div className="hero-aqi-label">Air Quality Index</div>
                     <div className="hero-aqi-value">{aqiData.aqi}</div>
@@ -186,6 +186,7 @@ function App() {
                 )}
               </main>
             </div>
+            )
           )}
 
           {currentPage === "map" && (
@@ -194,6 +195,7 @@ function App() {
                 coordinates={coordinates}
                 aqiData={aqiData}
                 locationName={locationName}
+                theme={theme}
               />
             </div>
           )}

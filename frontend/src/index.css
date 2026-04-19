@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -31,7 +31,8 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "San Francisco", "Helvetica Neue", sans-serif;
+  font-size: 17px;
   background:
     radial-gradient(1100px 500px at 8% -10%, rgba(34, 211, 238, 0.2), transparent 60%),
     radial-gradient(900px 440px at 100% 0%, rgba(59, 130, 246, 0.28), transparent 62%),

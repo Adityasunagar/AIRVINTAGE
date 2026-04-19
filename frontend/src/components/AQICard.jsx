@@ -1,6 +1,14 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 function AQICard({ aqiData }) {
+    const [animate, setAnimate] = useState(false);
+
+    useEffect(() => {
+        setAnimate(false);
+        const timer = setTimeout(() => setAnimate(true), 50);
+        return () => clearTimeout(timer);
+    }, [aqiData]);
+
     if (!aqiData) return null;
 
     return (
@@ -17,7 +25,7 @@ function AQICard({ aqiData }) {
                         {aqiData.pm2_5}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar temp-bar" style={{ width: `${Math.min((aqiData.pm2_5 / 50) * 100, 100)}%` }} />
+                        <div className="detail-card-bar pm-bar" style={{ width: animate ? `${Math.min((aqiData.pm2_5 / 50) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Fine particles matter</div>
                 </div>
@@ -29,7 +37,7 @@ function AQICard({ aqiData }) {
                         {aqiData.pm10}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar temp-bar" style={{ width: `${Math.min((aqiData.pm10 / 100) * 100, 100)}%` }} />
+                        <div className="detail-card-bar pm-bar" style={{ width: animate ? `${Math.min((aqiData.pm10 / 100) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Coarse particles matter</div>
                 </div>
@@ -41,7 +49,7 @@ function AQICard({ aqiData }) {
                         {aqiData.carbon_monoxide}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar visibility-bar" style={{ width: `${Math.min((aqiData.carbon_monoxide / 1000) * 100, 100)}%` }} />
+                        <div className="detail-card-bar co-bar" style={{ width: animate ? `${Math.min((aqiData.carbon_monoxide / 1000) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Carbon Monoxide</div>
                 </div>
@@ -53,7 +61,7 @@ function AQICard({ aqiData }) {
                         {aqiData.nitrogen_dioxide}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar visibility-bar" style={{ width: `${Math.min((aqiData.nitrogen_dioxide / 100) * 100, 100)}%` }} />
+                        <div className="detail-card-bar no2-bar" style={{ width: animate ? `${Math.min((aqiData.nitrogen_dioxide / 100) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Nitrogen Dioxide</div>
                 </div>
@@ -65,7 +73,7 @@ function AQICard({ aqiData }) {
                         {aqiData.ozone}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar humidity-bar" style={{ width: `${Math.min((aqiData.ozone / 150) * 100, 100)}%` }} />
+                        <div className="detail-card-bar o3-bar" style={{ width: animate ? `${Math.min((aqiData.ozone / 150) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Ground-level Ozone</div>
                 </div>
@@ -77,7 +85,7 @@ function AQICard({ aqiData }) {
                         {aqiData.sulphur_dioxide}<span className="detail-card-unit"> μg/m³</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar humidity-bar" style={{ width: `${Math.min((aqiData.sulphur_dioxide / 50) * 100, 100)}%` }} />
+                        <div className="detail-card-bar so2-bar" style={{ width: animate ? `${Math.min((aqiData.sulphur_dioxide / 50) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">Sulphur Dioxide</div>
                 </div>
