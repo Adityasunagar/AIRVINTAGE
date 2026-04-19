@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 
 
@@ -33,6 +33,14 @@ function getWindDirDeg(dir) {
 }
 
 function WeatherCard({ weatherData }) {
+    const [animate, setAnimate] = useState(false);
+
+    useEffect(() => {
+        setAnimate(false);
+        const timer = setTimeout(() => setAnimate(true), 150);
+        return () => clearTimeout(timer);
+    }, [weatherData]);
+
     if (!weatherData) return null;
     const windDeg = getWindDirDeg(weatherData.wind_direction);
 
@@ -53,7 +61,7 @@ function WeatherCard({ weatherData }) {
                         {weatherData.humidity}<span className="detail-card-unit">%</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar humidity-bar" style={{ width: `${weatherData.humidity}%` }} />
+                        <div className="detail-card-bar humidity-bar" style={{ width: animate ? `${weatherData.humidity}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">{getHumidityDesc(weatherData.humidity)}</div>
                 </div>
@@ -65,7 +73,7 @@ function WeatherCard({ weatherData }) {
                         {weatherData.wind_speed}<span className="detail-card-unit"> km/h</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar wind-bar" style={{ width: `${Math.min((weatherData.wind_speed / 50) * 100, 100)}%` }} />
+                        <div className="detail-card-bar wind-bar" style={{ width: animate ? `${Math.min((weatherData.wind_speed / 50) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">{getWindDesc(weatherData.wind_speed)}</div>
                 </div>
@@ -77,7 +85,7 @@ function WeatherCard({ weatherData }) {
                         {weatherData.visibility}<span className="detail-card-unit"> km</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar visibility-bar" style={{ width: `${Math.min((weatherData.visibility / 60) * 100, 100)}%` }} />
+                        <div className="detail-card-bar visibility-bar" style={{ width: animate ? `${Math.min((weatherData.visibility / 60) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">{getVisibilityDesc(weatherData.visibility)}</div>
                 </div>
@@ -89,7 +97,7 @@ function WeatherCard({ weatherData }) {
                         {weatherData.temperature}<span className="detail-card-unit">°C</span>
                     </div>
                     <div className="detail-card-bar-wrap">
-                        <div className="detail-card-bar temp-bar" style={{ width: `${Math.min(((weatherData.temperature + 10) / 55) * 100, 100)}%` }} />
+                        <div className="detail-card-bar temp-bar" style={{ width: animate ? `${Math.min(((weatherData.temperature + 10) / 55) * 100, 100)}%` : '0%' }} />
                     </div>
                     <div className="detail-card-desc">
                         {weatherData.min_temp != null ? `${weatherData.min_temp}° – ${weatherData.max_temp}° today` : "Current temperature"}
@@ -114,7 +122,7 @@ function WeatherCard({ weatherData }) {
                 {/* Condition card */}
                 <div className="detail-card">
                     <div className="detail-card-label">Condition</div>
-                    <div className="detail-card-value" style={{ fontSize: '1.1rem', lineHeight: 1.2 }}>
+                    <div className="detail-card-value" style={{ fontSize: '1.25rem', lineHeight: 1.25, marginTop: '10px' }}>
                         {weatherData.condition}
                     </div>
                     <div className="detail-card-desc">

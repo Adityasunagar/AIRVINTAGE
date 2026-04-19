@@ -189,6 +189,7 @@ function Dashboard() {
 								coordinates={coordinates}
 								aqiData={aqiData}
 								locationName={locationName}
+								theme={theme}
 							/>
 						</div>
 					)}
