@@ -19,6 +19,20 @@
 .env.test.local
 .env.production.local
 
+
+*.csv
+*.pkl
+data/
+models/
+
+# Large files
+# ML files
+*.pkl
+*.csv
+
+# model folder
+backend/app/model/models/
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
