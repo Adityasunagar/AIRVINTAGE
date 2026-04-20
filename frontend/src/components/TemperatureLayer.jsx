@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
-import L from 'leaflet';
 
 // Map temperature (°C) to a colour via a blue → green → yellow → red gradient
 function tempToColor(t) {

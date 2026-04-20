@@ -8,8 +8,8 @@
 /* ── CSS Variables (Dark) ── */
 :root {
   --bg: #0a0f1e;
-  --card-bg: rgba(13, 22, 53, 0.65);
-  --card-border: rgba(255, 255, 255, 0.06);
+  --card-bg: rgba(13, 22, 53, 0.25);
+  --card-border: rgba(255, 255, 255, 0.1);
   --text-1: #ffffff;
   --text-2: rgba(255, 255, 255, 0.7);
   --text-3: rgba(255, 255, 255, 0.4);
@@ -17,9 +17,9 @@
   --accent-2: #34d399;
   --warn: #fbbf24;
   --danger: #f87171;
-  --nav-bg: rgba(10, 15, 30, 0.7);
+  --nav-bg: #0a0f1e;
   --nav-border: rgba(255, 255, 255, 0.08);
-  --panel-sep: rgba(255, 255, 255, 0.05);
+  --panel-sep: rgba(255, 255, 255, 0.08);
   --r-sm: 12px;
   --r-md: 16px;
   --r-lg: 20px;
@@ -29,14 +29,14 @@
 /* ── Light Mode Overrides ── */
 .light {
   --bg: #e8f4fd;
-  --card-bg: rgba(255, 255, 255, 0.7);
-  --card-border: rgba(0, 0, 0, 0.06);
+  --card-bg: rgba(255, 255, 255, 0.35);
+  --card-border: rgba(255, 255, 255, 0.5);
   --text-1: #0f172a;
   --text-2: rgba(15, 23, 42, 0.65);
   --text-3: rgba(15, 23, 42, 0.4);
-  --nav-bg: rgba(255, 255, 255, 0.75);
-  --nav-border: rgba(0, 0, 0, 0.06);
-  --panel-sep: rgba(0, 0, 0, 0.05);
+  --nav-bg: #ffffff;
+  --nav-border: rgba(0, 0, 0, 0.08);
+  --panel-sep: rgba(0, 0, 0, 0.08);
 }
 
 /* ── Reset ── */
@@ -355,8 +355,6 @@ body {
   padding: 0 28px;
   height: 60px;
   background: var(--nav-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--nav-border);
   gap: 32px;
   transition: background 0.4s;
@@ -641,7 +639,7 @@ body {
 ═══════════════════════════════════════════════ */
 .premium-main {
   width: 100%;
-  max-width: 640px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 0 20px 48px;
   display: flex;
@@ -1740,8 +1738,6 @@ body {
     left: 0;
     right: 0;
     background: var(--nav-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--nav-border);
     padding: 12px 16px;
     gap: 6px;

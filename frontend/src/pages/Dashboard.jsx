@@ -9,6 +9,7 @@ import DashboardMapCard from "../components/DashboardMapCard";
 import AboutPage from "../components/AboutPage";
 import SkeletonScreen from "../components/SkeletonScreen";
 import { useWeatherBackground } from "../hooks/useWeatherBackground";
+import ForecastSection from "../components/forecast/ForecastSection";
 
 function getAqiColorClass(aqi) {
 	if (!aqi) return "";
@@ -67,19 +68,16 @@ function Dashboard() {
 		setLoading(true);
 
 		try {
-			const [weatherResponse, aqiResponse] = await Promise.all([
-				fetch(`http://127.0.0.1:8000/weather?lat=${coords.lat}&lon=${coords.lon}`),
-				fetch(`http://127.0.0.1:8000/aqi?lat=${coords.lat}&lon=${coords.lon}`),
-			]);
+			const response = await fetch(`http://127.0.0.1:8000/predict`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lat: coords.lat, lon: coords.lon })
+			});
 
-			if (weatherResponse.ok && aqiResponse.ok) {
-				const [weather, aqi] = await Promise.all([
-					weatherResponse.json(),
-					aqiResponse.json(),
-				]);
-
-				setWeatherData(weather);
-				setAqiData(aqi);
+			if (response.ok) {
+				const data = await response.json();
+				setWeatherData(data.weather_data);
+				setAqiData(data);
 			}
 		} catch (error) {
 			console.error("Fetch error:", error);
@@ -167,6 +165,13 @@ function Dashboard() {
 										</div>
 									</>
 								) : null}
+							</div>
+
+							<div style={{ color: 'red', fontWeight: 'bold', textAlign: 'center', padding: '10px', background: 'yellow', zIndex: 9999 }}>
+								--- DEBUG: FORECAST COMPONENT MOUNT POINT ---
+							</div>
+							<div className="forecast-outer-container" style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', padding: '0 20px' }}>
+								<ForecastSection lat={coordinates.lat} lon={coordinates.lon} />
 							</div>
 
 							<main className="main-content premium-main">

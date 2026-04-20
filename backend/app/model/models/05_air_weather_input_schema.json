@@ -1,0 +1,24 @@
+{
+  "pollutant_inputs": [
+    "PM2.5",
+    "PM10",
+    "NO2",
+    "SO2",
+    "CO",
+    "O3"
+  ],
+  "weather_inputs": [
+    "Temp_C",
+    "Humidity",
+    "Wind_Speed",
+    "Wind_Direction",
+    "Pressure_hPa",
+    "Rain_mm"
+  ],
+  "other_inputs": [
+    "station_id",
+    "datetime"
+  ],
+  "pollutant_source": "OpenAQ / CPCB free API",
+  "weather_source": "Open-Meteo / OpenWeatherMap free tier"
+}

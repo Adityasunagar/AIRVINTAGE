@@ -1,0 +1,13 @@
+{
+  "required_inputs": [
+    "station_id",
+    "date",
+    "PM2.5",
+    "PM10",
+    "NO2",
+    "SO2",
+    "CO",
+    "O3"
+  ],
+  "note": "All from OpenAQ/CPCB free API"
+}

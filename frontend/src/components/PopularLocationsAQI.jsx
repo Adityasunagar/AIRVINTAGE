@@ -38,7 +38,6 @@ function getAQILabel(aqi) {
 
 export default function PopularLocationsAQI({ show = true, refreshKey = 0 }) {
   const [locationsAQI, setLocationsAQI] = useState([]);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!show) {
@@ -46,16 +45,16 @@ export default function PopularLocationsAQI({ show = true, refreshKey = 0 }) {
       return;
     }
 
-    setLoading(true);
-
     async function fetchAll() {
       // Fetch all cities in parallel from our own free backend
       const results = await Promise.all(
         POPULAR_LOCATIONS.map(async (loc) => {
           try {
-            const res = await fetch(
-              `http://127.0.0.1:8000/aqi?lat=${loc.lat}&lon=${loc.lng}`
-            );
+            const res = await fetch(`http://127.0.0.1:8000/predict`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lat: loc.lat, lon: loc.lng })
+            });
             if (!res.ok) return null;
             const data = await res.json();
             const aqi = data?.aqi ?? 0;
@@ -68,7 +67,6 @@ export default function PopularLocationsAQI({ show = true, refreshKey = 0 }) {
       );
 
       setLocationsAQI(results.filter(Boolean));
-      setLoading(false);
     }
 
     fetchAll();

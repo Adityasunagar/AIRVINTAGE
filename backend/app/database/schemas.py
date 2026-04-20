@@ -12,6 +12,10 @@ class LocationBase(BaseModel):
 class LocationCreate(LocationBase):
     pass
 
+class PredictionRequest(BaseModel):
+    lat: float
+    lon: float
+
 class Location(LocationBase):
     location_id: int
     timestamp: datetime
