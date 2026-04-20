@@ -13,8 +13,29 @@ function AQICard({ aqiData }) {
 
     return (
         <div className="panel animate-in">
-            <div className="panel-header">
+            <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span className="panel-title">Air Quality Pollutants</span>
+                {aqiData.aqi && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-2)' }}>AQI</span>
+                        <div style={{
+                            background: aqiData.aqi <= 50 ? 'rgba(74, 222, 128, 0.2)' : 
+                                        aqiData.aqi <= 100 ? 'rgba(250, 204, 21, 0.2)' : 
+                                        aqiData.aqi <= 150 ? 'rgba(251, 146, 60, 0.2)' : 
+                                        aqiData.aqi <= 200 ? 'rgba(248, 113, 113, 0.2)' : 'rgba(192, 132, 252, 0.2)',
+                            color: aqiData.aqi <= 50 ? '#4ade80' : 
+                                   aqiData.aqi <= 100 ? '#facc15' : 
+                                   aqiData.aqi <= 150 ? '#fb923c' : 
+                                   aqiData.aqi <= 200 ? '#f87171' : '#c084fc',
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            fontSize: '18px'
+                        }}>
+                            {aqiData.aqi}
+                        </div>
+                    </div>
+                )}
             </div>
             
             <div className="details-grid">

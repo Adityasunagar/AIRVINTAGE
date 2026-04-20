@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 # Import our new database modules
 from app.database.database import engine, Base, get_db
 from app.database import schemas, crud
+from app.model.inference_router import create_predictor
+import os
+from datetime import datetime, timedelta
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+# Initialize ML Predictor
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "model", "models")
+predictor = create_predictor(models_dir=MODELS_DIR)
+executor = ThreadPoolExecutor(max_workers=10)
 
 app = FastAPI()
 
@@ -24,8 +35,10 @@ if engine:
 # ✅ Allow frontend access
 origins = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost:6669",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
     "http://127.0.0.1:6669",
 ]
 
@@ -47,34 +60,48 @@ def get_weather_condition(code):
     weather_map = {
         0: "Clear",
         1: "Partly Cloudy",
-        2: "Partly Cloudy",
+        2: "Cloudy",
         3: "Overcast",
         45: "Fog",
-        48: "Fog",
-        51: "Drizzle",
-        53: "Drizzle",
-        55: "Drizzle",
-        56: "Drizzle",
-        57: "Drizzle",
-        61: "Rainy",
-        63: "Rainy",
+        48: "Rime Fog",
+        51: "Light Drizzle",
+        53: "Moderate Drizzle",
+        55: "Dense Drizzle",
+        56: "Freezing Drizzle",
+        57: "Freezing Drizzle",
+        61: "Light Rain",
+        63: "Moderate Rain",
         65: "Heavy Rain",
-        66: "Rainy",
-        67: "Heavy Rain",
-        71: "Snow",
-        73: "Snow",
-        75: "Snow",
-        77: "Snow",
-        80: "Rainy",
-        81: "Rainy",
-        82: "Heavy Rain",
-        85: "Snow",
-        86: "Snow",
-        95: "Storm",
-        96: "Storm",
-        99: "Storm",
+        71: "Light Snow",
+        73: "Moderate Snow",
+        75: "Heavy Snow",
+        77: "Snow Grains",
+        80: "Rain Showers",
+        81: "Rain Showers",
+        82: "Heavy Rain Showers",
+        85: "Snow Showers",
+        86: "Snow Showers",
+        95: "Thunderstorm",
+        96: "Thunderstorm + Hail",
+        99: "Heavy Hail"
     }
-    return weather_map.get(code, "Cloudy")
+    return weather_map.get(code, "Unknown")
+
+import datetime
+def get_moon_phase(date: datetime.date) -> str:
+    # Known new moon date
+    new_moon = datetime.date(2000, 1, 6)
+    diff = date - new_moon
+    days = diff.days % 29.53058867
+    
+    if days < 1 or days >= 28.5: return "New Moon"
+    if days < 6.5: return "Waxing Crescent"
+    if days < 8.5: return "First Quarter"
+    if days < 14: return "Waxing Gibbous"
+    if days < 16: return "Full Moon"
+    if days < 21: return "Waning Gibbous"
+    if days < 23.5: return "Last Quarter"
+    return "Waning Crescent"
 
 
 # ✅ Convert wind degree → direction
@@ -97,7 +124,7 @@ def get_hourly_value_for_current_time(hourly_times, hourly_values, current_time,
         except (ValueError, IndexError):
             pass
 
-    return hourly_values[0]
+    return hourly_values[0] if hourly_values else default
 
 
 # ✅ MAIN WEATHER API
@@ -405,7 +432,6 @@ def parse_rss(url, limit=10):
     except Exception as e:
         logger.error(f"❌ Unexpected error parsing {url}: {str(e)}", exc_info=True)
         return []
-        return []
 
 @app.get("/news")
 def get_news(region: str = "world"):
@@ -435,3 +461,243 @@ def get_news(region: str = "world"):
     
     logger.info(f"✅ Fetched {len(news_data)} news articles for region: {region}")
     return {"region": region, "news": news_data, "count": len(news_data)}
+
+
+# ✅ UNIFIED PREDICTION POINT (PRODUCTION READY)
+@app.post("/predict")
+async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(get_db)):
+    """
+    Production-grade endpoint that fetches live pollutants and weather,
+    feeds them into the AirVintage ML Router, and returns a high-fidelity result.
+    """
+    lat = request.lat
+    lon = request.lon
+    
+    # 1. Prepare API URLs
+    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,surface_pressure,precipitation,temperature_2m,windspeed_10m,winddirection_10m,weathercode&timezone=auto"
+    aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
+
+    loop = asyncio.get_event_loop()
+    
+    try:
+        # 2. Fetch data concurrently
+        def fetch_json(url):
+            try:
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:
+                logger.error(f"API Fetch Error for {url}: {e}")
+                return {}
+
+        weather_task = loop.run_in_executor(executor, fetch_json, weather_url)
+        aq_task = loop.run_in_executor(executor, fetch_json, aq_url)
+        
+        weather_data, aq_data = await asyncio.gather(weather_task, aq_task)
+        
+        if not weather_data or not aq_data:
+            return {"error": "External API failure", "details": "Could not fetch weather or air quality data"}
+
+        # 3. Extract pollutants
+        curr_aq = aq_data.get("current", {})
+        pm2_5 = curr_aq.get("pm2_5", 0)
+        pm10 = curr_aq.get("pm10", 0)
+        co = curr_aq.get("carbon_monoxide", 0)
+        no2 = curr_aq.get("nitrogen_dioxide", 0)
+        so2 = curr_aq.get("sulphur_dioxide", 0)
+        o3 = curr_aq.get("ozone", 0)
+
+        # 4. Extract weather
+        curr_wx = weather_data.get("current_weather", {})
+        temp = curr_wx.get("temperature", 25.0)
+        wind_speed = curr_wx.get("windspeed", 5.0)
+        wind_dir = curr_wx.get("winddirection", 0)
+        
+        # Hourly data for pressure, humidity, rain
+        hourly = weather_data.get("hourly", {})
+        h_times = hourly.get("time", [])
+        timestamp_str = curr_wx.get("time")
+        
+        humidity = get_hourly_value_for_current_time(h_times, hourly.get("relativehumidity_2m", []), timestamp_str, default=50.0)
+        pressure = get_hourly_value_for_current_time(h_times, hourly.get("surface_pressure", []), timestamp_str, default=1013.0)
+        rain = get_hourly_value_for_current_time(h_times, hourly.get("precipitation", []), timestamp_str, default=0.0)
+
+        # 5. Run ML Inference
+        if timestamp_str:
+            try:
+                dt_obj = datetime.datetime.fromisoformat(timestamp_str)
+                iso_ts = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                iso_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            iso_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        result = predictor.predict_by_location(
+            lat=lat, lon=lon,
+            datetime_str=iso_ts,
+            pm25=pm2_5, pm10=pm10, no2=no2, so2=so2, co=co, o3=o3,
+            temp_c=temp, humidity=humidity, 
+            wind_speed=wind_speed, wind_dir=wind_dir,
+            pressure_hpa=pressure, rain_mm=rain
+        )
+
+        # 6. Database Persistence
+        if db:
+            try:
+                # Create Location
+                loc_schema = schemas.LocationCreate(latitude=lat, longitude=lon)
+                db_loc = crud.create_location(db, loc_schema)
+                
+                # Create Environmental Data
+                env_schema = schemas.EnvironmentalDataCreate(
+                    temperature=temp,
+                    humidity=humidity,
+                    pm2_5=pm2_5,
+                    pm10=pm10
+                )
+                db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
+                
+                # Create Prediction
+                pred_schema = schemas.PredictionCreate(
+                    predicted_aqi=int(result["predicted_aqi"]),
+                    aqi_category=result["aqi_category"]
+                )
+                db_pred = crud.create_prediction(db, pred_schema, data_id=db_env.data_id)
+                
+                # Create Health Alert
+                alert_schema = schemas.HealthAlertCreate(
+                    alert_message=result["health_advisory"]["message"],
+                    recommendation=result["health_advisory"]["recommendation"]
+                )
+                crud.create_health_alert(db, alert_schema, prediction_id=db_pred.prediction_id)
+                logger.info(f"💾 Logged ML prediction to DB for {result.get('nearest_city', 'Unknown')}")
+            except Exception as db_err:
+                logger.error(f"Failed to log prediction to DB: {db_err}")
+
+        # 7. Add extra info for frontend compatibility
+        result.update({
+            "aqi": int(result["predicted_aqi"]), 
+            "status": result["aqi_category"],
+            "pm2_5": pm2_5,
+            "pm10": pm10,
+            "carbon_monoxide": co,
+            "nitrogen_dioxide": no2,
+            "sulphur_dioxide": so2,
+            "ozone": o3,
+            "weather_data": {
+                "temperature": temp,
+                "humidity": humidity,
+                "wind_speed": wind_speed,
+                "pressure": pressure,
+                "rain": rain,
+                "condition": get_weather_condition(curr_wx.get("weathercode", 0))
+            }
+        })
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Prediction Error: {str(e)}", exc_info=True)
+        return {"error": "Prediction failed", "details": str(e)}
+
+# ✅ ADVANCED 7-DAY FORECAST (PRODUCTION READY)
+@app.post("/forecast")
+async def get_forecast(request: schemas.PredictionRequest):
+    """
+    Unified forecast endpoint for Weather and Air Quality (7 days).
+    Fetches hourly and daily data concurrently.
+    """
+    lat, lon = request.lat, request.lon
+    
+    # 1. URLs for Weather and Air Quality (Forecast + 7 Days History)
+    weather_forecast_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,uv_index_max,windspeed_10m_max,sunrise,sunset&hourly=temperature_2m,precipitation_probability,relativehumidity_2m,surface_pressure,visibility,weather_code,is_day,apparent_temperature&timezone=auto"
+    aq_forecast_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=7&forecast_days=7&timezone=auto"
+
+    loop = asyncio.get_event_loop()
+    
+    try:
+        def fetch_json(url):
+            try:
+                r = requests.get(url, timeout=10)
+                r.raise_for_status()
+                return r.json()
+            except Exception as e:
+                logger.error(f"API Fetch Error for {url}: {e}")
+                return {}
+
+        w_task = loop.run_in_executor(executor, fetch_json, weather_forecast_url)
+        aq_task = loop.run_in_executor(executor, fetch_json, aq_forecast_url)
+        
+        weather_data, aq_data = await asyncio.gather(w_task, aq_task)
+
+        # 2. Process Daily Weather (7 Days)
+        daily = weather_data.get("daily", {})
+        processed_daily = []
+        for i in range(len(daily.get("time", []))):
+            date_obj = datetime.datetime.strptime(daily["time"][i], "%Y-%m-%d").date()
+            processed_daily.append({
+                "date": daily["time"][i],
+                "temp_max": daily["temperature_2m_max"][i],
+                "temp_min": daily["temperature_2m_min"][i],
+                "weather_code": daily["weathercode"][i],
+                "condition": get_weather_condition(daily["weathercode"][i]),
+                "precip": daily["precipitation_sum"][i],
+                "uv": daily["uv_index_max"][i],
+                "wind": daily["windspeed_10m_max"][i],
+                "sunrise": daily.get("sunrise", [])[i] if daily.get("sunrise") else None,
+                "sunset": daily.get("sunset", [])[i] if daily.get("sunset") else None,
+                "moon_phase": get_moon_phase(date_obj)
+            })
+
+        # 3. Process Hourly Trends (for charts)
+        w_hourly = weather_data.get("hourly", {})
+        aq_hourly = aq_data.get("hourly", {})
+        
+        processed_hourly = []
+        times = aq_hourly.get("time", [])
+        for i in range(len(times)):
+            time_str = times[i]
+            
+            try:
+                # We use string matching for the timestamp to sync weather and AQ hourly
+                wx_idx = w_hourly.get("time", []).index(time_str)
+                temp = w_hourly["temperature_2m"][wx_idx]
+                apparent_temp = w_hourly.get("apparent_temperature", [])[wx_idx] if "apparent_temperature" in w_hourly else temp
+                precip_prob = w_hourly["precipitation_probability"][wx_idx]
+                hum = w_hourly["relativehumidity_2m"][wx_idx]
+                weather_code = w_hourly.get("weather_code", [])[wx_idx] if "weather_code" in w_hourly else 0
+                is_day = w_hourly.get("is_day", [])[wx_idx] if "is_day" in w_hourly else 1
+            except (ValueError, KeyError, IndexError):
+                temp = None
+                apparent_temp = None
+                precip_prob = 0
+                hum = 0
+                weather_code = 0
+                is_day = 1
+
+            processed_hourly.append({
+                "time": time_str,
+                "aqi": aq_hourly.get("us_aqi", [])[i],
+                "pm2_5": aq_hourly.get("pm2_5", [])[i],
+                "pm10": aq_hourly.get("pm10", [])[i],
+                "temp": temp,
+                "apparent_temp": apparent_temp,
+                "weather_code": weather_code,
+                "is_day": is_day,
+                "precip_prob": precip_prob,
+                "humidity": hum
+            })
+
+        return {
+            "daily": processed_daily,
+            "hourly": processed_hourly,
+            "units": {
+                "temp": "°C",
+                "aqi": "US AQI",
+                "precip": "mm"
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Forecast Error: {str(e)}", exc_info=True)
+        return {"error": "Forecast generation failed", "details": str(e)}

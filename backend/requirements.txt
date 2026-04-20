@@ -1,1 +1,13 @@
-# requirements.txt — Python dependencies
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+requests
+pandas
+numpy
+joblib
+xgboost
+lightgbm
+catboost
+scikit-learn
+python-dotenv

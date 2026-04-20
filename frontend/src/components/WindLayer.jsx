@@ -56,7 +56,6 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
 
       // Build SVG overlay
       const pxBounds = map.getPixelBounds();
-      const topLeft = pxBounds.min;
       const size = pxBounds.max.subtract(pxBounds.min);
 
       const svgNS = 'http://www.w3.org/2000/svg';

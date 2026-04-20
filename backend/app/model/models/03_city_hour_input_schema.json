@@ -1,0 +1,13 @@
+{
+  "required_inputs": [
+    "city",
+    "datetime",
+    "PM2.5",
+    "PM10",
+    "NO2",
+    "SO2",
+    "CO",
+    "O3"
+  ],
+  "note": "Datetime includes hour; all pollutants from OpenAQ/CPCB"
+}

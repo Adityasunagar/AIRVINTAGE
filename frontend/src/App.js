@@ -9,6 +9,7 @@ import DashboardMapCard from "./components/DashboardMapCard";
 import AboutPage from "./components/AboutPage";
 import NewsPage from "./components/NewsPage";
 import SkeletonScreen from "./components/SkeletonScreen";
+import ForecastSection from "./components/forecast/ForecastSection";
 
 
 function getAqiColorClass(aqi) {
@@ -90,14 +91,15 @@ function App() {
     if (!coords) return;
     setLoading(true);
     try {
-      const [wRes, aRes] = await Promise.all([
-        fetch(`http://127.0.0.1:8000/weather?lat=${coords.lat}&lon=${coords.lon}`),
-        fetch(`http://127.0.0.1:8000/aqi?lat=${coords.lat}&lon=${coords.lon}`)
-      ]);
-      if (wRes.ok && aRes.ok) {
-        const [wData, aData] = await Promise.all([wRes.json(), aRes.json()]);
-        setWeatherData(wData);
-        setAqiData(aData);
+      const resp = await fetch(`http://127.0.0.1:8000/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: coords.lat, lon: coords.lon })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setWeatherData(data.weather_data);
+        setAqiData(data);
       }
     } catch (err) {
       console.error("Fetch error:", err);
@@ -160,21 +162,26 @@ function App() {
                   ) : "rgba(56,189,248,0.4)"
                 } />
 
-                {aqiData && weatherData ? (
+                {aqiData ? (
                   <>
                     <div className="hero-aqi-label">Air Quality Index</div>
-                    <div className="hero-aqi-value">{aqiData.aqi}</div>
-                    <div className={`hero-aqi-status-badge ${aqiClass}`}>{aqiData.status}</div>
-                    <div className="hero-weather-summary">
-                      {weatherData.condition} · {weatherData.temperature}°C
-                      {weatherData.min_temp != null ? ` · ${weatherData.min_temp}° / ${weatherData.max_temp}°` : ""}
-                    </div>
+                    <div className="hero-aqi-value">{aqiData.aqi || '--'}</div>
+                    <div className={`hero-aqi-status-badge ${aqiClass}`}>{aqiData.status || 'Unknown'}</div>
+                    {weatherData && (
+                      <div className="hero-weather-summary">
+                        {weatherData.condition} · {weatherData.temperature}°C
+                        {weatherData.min_temp != null ? ` · ${weatherData.min_temp}° / ${weatherData.max_temp}°` : ""}
+                      </div>
+                    )}
                   </>
-                ) : null}
+                ) : (
+                  <div className="hero-loading">Loading Air Quality Data...</div>
+                )}
               </div>
 
               {/* ── Dashboard Panels ── */}
               <main className="main-content premium-main">
+                <ForecastSection lat={coordinates.lat} lon={coordinates.lon} />
                 {aqiData && <AQICard aqiData={aqiData} />}
                 {weatherData && <WeatherCard weatherData={weatherData} />}
                 {coordinates && aqiData && (
