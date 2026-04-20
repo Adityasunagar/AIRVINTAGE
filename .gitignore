@@ -59,6 +59,15 @@ backend/app/model/*.pth
 backend/app/model/logs/
 backend/app/model/checkpoints/
 
+# ML files
+*.pkl
+*.csv
+*.ipynb
+
+# model folders
+backend/app/model/models/
+backend/app/model/model train/
+
 # ══════════════════════════════════════════════
 #  ENVIRONMENT & SECRETS
 # ══════════════════════════════════════════════
