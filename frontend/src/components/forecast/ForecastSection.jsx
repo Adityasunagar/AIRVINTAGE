@@ -105,7 +105,10 @@ const ForecastSection = ({ lat, lon }) => {
           return (
             <div 
               key={day.date}
-              onClick={() => setSelectedDayIdx(idx)}
+              onClick={(e) => {
+                setSelectedDayIdx(idx);
+                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              }}
               style={{
                 height: '110px',
                 padding: '12px',

@@ -5,6 +5,10 @@
       <stop offset="100%" stop-color="#22d3ee" />
     </linearGradient>
   </defs>
-  <path d="M12 28L20 8L28 28" stroke="url(#logoGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M10 24Q20 18 30 24" stroke="url(#logoGrad)" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
+  <!-- The 'V' shape (exact symmetric inverse of the A) -->
+  <path d="M12 10L20 30L28 10" stroke="url(#logoGrad)" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- The 'A' shape -->
+  <path d="M12 28L20 8L28 28" stroke="url(#logoGrad)" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- The curved crossbar -->
+  <path d="M10 24Q20 18 30 24" stroke="url(#logoGrad)" stroke-width="2.2" stroke-linecap="round" stroke-opacity="0.7"/>
 </svg>
