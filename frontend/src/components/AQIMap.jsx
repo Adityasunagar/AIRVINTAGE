@@ -373,9 +373,9 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         {[
           { label: 'Good',          color: '#22c55e', range: '0–50'   },
           { label: 'Moderate',      color: '#eab308', range: '51–100' },
-          { label: 'Unhealthy†',    color: '#f97316', range: '101–150'},
+          { label: 'Unhealthy (SG)',color: '#f97316', range: '101–150'},
           { label: 'Unhealthy',     color: '#ef4444', range: '151–200'},
-          { label: 'Very Unhlthy',  color: '#a855f7', range: '201–300'},
+          { label: 'Very Unhealthy',  color: '#a855f7', range: '201–300'},
           { label: 'Hazardous',     color: '#dc2626', range: '301+'   },
         ].map(item => (
           <div key={item.label} className="legend-item">

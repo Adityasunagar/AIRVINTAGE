@@ -18,7 +18,7 @@ export default function TemperatureLayer({ show = true, refreshKey = 0 }) {
 
   useEffect(() => {
     if (!show) {
-      if (layerRef.current?.parentNode) {
+      if (layerRef.current && layerRef.current.parentNode) {
         layerRef.current.parentNode.removeChild(layerRef.current);
       }
       layerRef.current = null;
@@ -33,44 +33,45 @@ export default function TemperatureLayer({ show = true, refreshKey = 0 }) {
       const latStep = (ne.lat - sw.lat) / STEPS;
       const lngStep = (ne.lng - sw.lng) / STEPS;
 
-      const requests = [];
+      const lats = [];
+      const lngs = [];
       for (let i = 0; i <= STEPS; i++) {
         for (let j = 0; j <= STEPS; j++) {
-          const lat = sw.lat + i * latStep;
-          const lng = sw.lng + j * lngStep;
-          requests.push(
-            fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&current_weather=true&timezone=auto`
-            )
-              .then((r) => r.json())
-              .then((d) => ({
-                lat,
-                lng,
-                temp: d?.current_weather?.temperature ?? null,
-              }))
-              .catch(() => null)
-          );
+          lats.push((sw.lat + i * latStep).toFixed(3));
+          lngs.push((sw.lng + j * lngStep).toFixed(3));
         }
       }
 
-      const points = (await Promise.all(requests)).filter((p) => p && p.temp !== null);
+      let points = [];
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats.join(',')}&longitude=${lngs.join(',')}&current_weather=true`);
+        if (res.ok) {
+          const data = await res.json();
+          const arr = Array.isArray(data) ? data : [data];
+          points = arr.map((d, idx) => ({
+            lat: parseFloat(lats[idx]),
+            lng: parseFloat(lngs[idx]),
+            temp: d?.current_weather?.temperature ?? null,
+          })).filter(p => p.temp !== null);
+        }
+      } catch (e) {
+        console.error("Temperature fetch error", e);
+      }
 
-      // Remove old overlay
-      if (layerRef.current?.parentNode) {
+      if (layerRef.current && layerRef.current.parentNode) {
         layerRef.current.parentNode.removeChild(layerRef.current);
         layerRef.current = null;
       }
+      
+      if (!show) return;
+
+      const size = map.getSize();
+      const nw = map.containerPointToLayerPoint([0, 0]);
 
       const svgNS = 'http://www.w3.org/2000/svg';
-      const pxBounds = map.getPixelBounds();
-      const size = pxBounds.max.subtract(pxBounds.min);
-
       const svg = document.createElementNS(svgNS, 'svg');
       svg.setAttribute('width', size.x);
       svg.setAttribute('height', size.y);
-      svg.style.position = 'absolute';
-      svg.style.pointerEvents = 'none';
-      svg.style.zIndex = 400;
 
       for (const pt of points) {
         const px = map.latLngToContainerPoint([pt.lat, pt.lng]);
@@ -97,7 +98,8 @@ export default function TemperatureLayer({ show = true, refreshKey = 0 }) {
       }
 
       const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;';
+      container.className = 'leaflet-temperature-layer leaflet-zoom-hide';
+      container.style.cssText = `position:absolute;top:${nw.y}px;left:${nw.x}px;pointer-events:none;z-index:400;`;
       container.appendChild(svg);
 
       const pane = map.getPanes().overlayPane;
@@ -110,9 +112,10 @@ export default function TemperatureLayer({ show = true, refreshKey = 0 }) {
 
     return () => {
       map.off('moveend', fetchAndDraw);
-      if (layerRef.current?.parentNode) {
+      if (layerRef.current && layerRef.current.parentNode) {
         layerRef.current.parentNode.removeChild(layerRef.current);
       }
+      layerRef.current = null;
     };
   }, [map, show, refreshKey]);
 

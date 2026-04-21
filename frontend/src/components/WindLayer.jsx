@@ -1,20 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
-import L from 'leaflet';
 
-/**
- * Renders a wind speed overlay by sampling a grid from Open-Meteo
- * and drawing directional arrows on a Leaflet canvas layer.
- */
 export default function WindLayer({ show = true, refreshKey = 0 }) {
   const map = useMap();
   const layerRef = useRef(null);
 
   useEffect(() => {
     if (!show) {
-      if (layerRef.current && map.hasLayer(layerRef.current)) {
-        map.removeLayer(layerRef.current);
+      if (layerRef.current && layerRef.current.parentNode) {
+        layerRef.current.parentNode.removeChild(layerRef.current);
       }
+      layerRef.current = null;
       return;
     }
 
@@ -26,48 +22,52 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
       const latStep = (ne.lat - sw.lat) / STEPS;
       const lngStep = (ne.lng - sw.lng) / STEPS;
 
-      const requests = [];
+      const lats = [];
+      const lngs = [];
       for (let i = 0; i <= STEPS; i++) {
         for (let j = 0; j <= STEPS; j++) {
-          const lat = sw.lat + i * latStep;
-          const lng = sw.lng + j * lngStep;
-          requests.push(
-            fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&current_weather=true&timezone=auto`
-            )
-              .then((r) => r.json())
-              .then((d) => ({
-                lat,
-                lng,
-                speed: d?.current_weather?.windspeed ?? 0,
-                dir: d?.current_weather?.winddirection ?? 0,
-              }))
-              .catch(() => null)
-          );
+          lats.push((sw.lat + i * latStep).toFixed(3));
+          lngs.push((sw.lng + j * lngStep).toFixed(3));
         }
       }
 
-      const points = (await Promise.all(requests)).filter(Boolean);
-
-      // Remove old layer
-      if (layerRef.current && map.hasLayer(layerRef.current)) {
-        map.removeLayer(layerRef.current);
+      let points = [];
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lats.join(',')}&longitude=${lngs.join(',')}&current_weather=true`);
+        if (res.ok) {
+          const data = await res.json();
+          const arr = Array.isArray(data) ? data : [data];
+          points = arr.map((d, idx) => ({
+             lat: parseFloat(lats[idx]),
+             lng: parseFloat(lngs[idx]),
+             speed: d?.current_weather?.windspeed ?? 0,
+             dir: d?.current_weather?.winddirection ?? 0,
+          }));
+        }
+      } catch (e) {
+        console.error("Wind fetch error", e);
       }
 
-      // Build SVG overlay
-      const pxBounds = map.getPixelBounds();
-      const size = pxBounds.max.subtract(pxBounds.min);
+      if (layerRef.current && layerRef.current.parentNode) {
+        layerRef.current.parentNode.removeChild(layerRef.current);
+        layerRef.current = null;
+      }
+
+      if (!show) return;
+
+      const size = map.getSize();
+      const nw = map.containerPointToLayerPoint([0, 0]);
 
       const svgNS = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(svgNS, 'svg');
       svg.setAttribute('xmlns', svgNS);
       svg.setAttribute('width', size.x);
       svg.setAttribute('height', size.y);
-      svg.style.position = 'absolute';
-      svg.style.pointerEvents = 'none';
 
       for (const pt of points) {
+        if (!pt.speed) continue;
         const px = map.latLngToContainerPoint([pt.lat, pt.lng]);
+        
         const maxSpeed = 60; // km/h cap
         const intensity = Math.min(pt.speed / maxSpeed, 1);
         const r = Math.round(intensity * 255);
@@ -87,7 +87,7 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
         line.setAttribute('stroke', arrowColor);
         line.setAttribute('stroke-width', '1.5');
         line.setAttribute('stroke-opacity', '0.8');
-        line.setAttribute('marker-end', 'url(#arrow)');
+        line.setAttribute('marker-end', 'url(#wind-arrow)');
         svg.appendChild(line);
 
         const circle = document.createElementNS(svgNS, 'circle');
@@ -99,10 +99,9 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
         svg.appendChild(circle);
       }
 
-      // Arrow marker def
       const defs = document.createElementNS(svgNS, 'defs');
       const marker = document.createElementNS(svgNS, 'marker');
-      marker.setAttribute('id', 'arrow');
+      marker.setAttribute('id', 'wind-arrow');
       marker.setAttribute('markerWidth', '6');
       marker.setAttribute('markerHeight', '6');
       marker.setAttribute('refX', '6');
@@ -115,18 +114,14 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
       defs.appendChild(marker);
       svg.insertBefore(defs, svg.firstChild);
 
-      const container = L.DomUtil.create('div', 'leaflet-wind-layer');
-      container.style.position = 'absolute';
-      container.style.left = '0';
-      container.style.top = '0';
-      container.style.pointerEvents = 'none';
-      container.style.zIndex = 500;
+      const container = document.createElement('div');
+      container.className = 'leaflet-wind-layer leaflet-zoom-hide';
+      container.style.cssText = `position:absolute;top:${nw.y}px;left:${nw.x}px;pointer-events:none;z-index:500;`;
       container.appendChild(svg);
 
       const pane = map.getPanes().overlayPane;
       pane.appendChild(container);
-      layerRef.current = { _container: container };
-      layerRef.current.removeFrom = () => pane.removeChild(container);
+      layerRef.current = container;
     }
 
     fetchAndDraw();
@@ -134,9 +129,10 @@ export default function WindLayer({ show = true, refreshKey = 0 }) {
 
     return () => {
       map.off('moveend', fetchAndDraw);
-      if (layerRef.current?._container?.parentNode) {
-        layerRef.current._container.parentNode.removeChild(layerRef.current._container);
+      if (layerRef.current && layerRef.current.parentNode) {
+        layerRef.current.parentNode.removeChild(layerRef.current);
       }
+      layerRef.current = null;
     };
   }, [map, show, refreshKey]);
 

@@ -26,36 +26,36 @@ const HEATMAP_CONFIG = {
 
 const AQI_MAX = 300;
 
-// Free Open-Meteo AQI fetch — no API key required
 async function fetchAQIPoints(bounds) {
   const { _southWest: sw, _northEast: ne } = bounds;
   const STEPS = 6; // 7x7 grid = 49 points for better heatmap blending
   const latStep = (ne.lat - sw.lat) / STEPS;
   const lngStep = (ne.lng - sw.lng) / STEPS;
 
-  const requests = [];
+  const lats = [];
+  const lngs = [];
 
   for (let i = 0; i <= STEPS; i++) {
     for (let j = 0; j <= STEPS; j++) {
-      const lat = sw.lat + i * latStep;
-      const lng = sw.lng + j * lngStep;
-
-      requests.push(
-        fetch(
-          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=us_aqi&timezone=auto`
-        )
-          .then((r) => r.json())
-          .then((d) => {
-            const aqi = d?.current?.us_aqi ?? 0;
-            return aqi > 0 ? { lat, lng, aqi } : null;
-          })
-          .catch(() => null)
-      );
+      lats.push((sw.lat + i * latStep).toFixed(4));
+      lngs.push((sw.lng + j * lngStep).toFixed(4));
     }
   }
 
-  const results = await Promise.all(requests);
-  return results.filter(Boolean);
+  try {
+    const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats.join(',')}&longitude=${lngs.join(',')}&current=us_aqi&timezone=auto`);
+    if (!res.ok) return [];
+    
+    const data = await res.json();
+    const arr = Array.isArray(data) ? data : [data];
+    return arr.map((d, index) => {
+      const aqi = d?.current?.us_aqi ?? 0;
+      return aqi > 0 ? { lat: parseFloat(lats[index]), lng: parseFloat(lngs[index]), aqi } : null;
+    }).filter(Boolean);
+  } catch (e) {
+    console.error("Heatmap fetch error", e);
+    return [];
+  }
 }
 
 export default function AQIHeatmapLayer({ show = true, refreshKey = 0 }) {
@@ -72,7 +72,6 @@ export default function AQIHeatmapLayer({ show = true, refreshKey = 0 }) {
 
     if (!show && overlayRef.current && map.hasLayer(overlayRef.current)) {
       map.removeLayer(overlayRef.current);
-      return;
     }
 
     async function fetchAndRender() {
@@ -81,6 +80,8 @@ export default function AQIHeatmapLayer({ show = true, refreshKey = 0 }) {
         overlayRef.current.addTo(map);
       }
       const points = await fetchAQIPoints(map.getBounds());
+      // Handle possibility that show went false during fetch
+      if (!map.hasLayer(overlayRef.current)) return;
       overlayRef.current.setData({ max: AQI_MAX, data: points });
     }
 
@@ -91,6 +92,10 @@ export default function AQIHeatmapLayer({ show = true, refreshKey = 0 }) {
 
     return () => {
       map.off('moveend', fetchAndRender);
+      if (overlayRef.current && map.hasLayer(overlayRef.current)) {
+        map.removeLayer(overlayRef.current);
+      }
+      initializedRef.current = false;
     };
   }, [map, show, refreshKey]);
 

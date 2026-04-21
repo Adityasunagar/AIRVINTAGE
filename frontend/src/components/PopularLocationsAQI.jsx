@@ -30,7 +30,7 @@ function getAQILabel(aqi) {
   if (!aqi || aqi === 0) return 'No Data';
   if (aqi <= 50)  return 'Good';
   if (aqi <= 100) return 'Moderate';
-  if (aqi <= 150) return 'Unhealthy†';
+  if (aqi <= 150) return 'Unhealthy (Sensitive)';
   if (aqi <= 200) return 'Unhealthy';
   if (aqi <= 300) return 'Very Unhealthy';
   return 'Hazardous';

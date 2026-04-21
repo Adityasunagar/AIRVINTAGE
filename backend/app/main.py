@@ -1,9 +1,12 @@
 # main.py — Main API (dashboard endpoint)
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import xml.etree.ElementTree as ET
 import html
+import hashlib
+import time
+import re
 from sqlalchemy.orm import Session
 import logging
 
@@ -312,155 +315,148 @@ def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
 
     return aqi_data
 
-# ✅ FETCH NEWS FROM RSS FEEDS
-def parse_rss(url, limit=10):
+# ─────────────────────────────────────────────────────────────────
+# NEWS CACHE  (in-memory, 30-minute TTL)
+# ─────────────────────────────────────────────────────────────────
+NEWS_CACHE: dict = {}          # id -> article dict
+NEWS_REGION_CACHE: dict = {}  # region -> {articles, fetched_at}
+NEWS_TTL = 1800                # 30 minutes
+
+
+def _make_id(url: str) -> str:
+    """Stable 12-char hex ID from a URL, used as the in-app article identifier."""
+    return hashlib.md5(url.encode()).hexdigest()[:12]
+
+
+# ─────────────────────────────────────────────────────────────────
+# RSS PARSER
+# ─────────────────────────────────────────────────────────────────
+def parse_rss(url: str, limit: int = 12) -> list:
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/rss+xml, application/atom+xml, text/xml, */*",
-        "Accept-Language": "en-US,en;q=0.9"
     }
     try:
-        logger.info(f"📍 Starting request to: {url}")
         response = requests.get(url, headers=headers, timeout=15)
-        logger.info(f"📊 Response status: {response.status_code}, Content length: {len(response.content)} bytes")
-        
-        if response.status_code != 200:
-            logger.error(f"❌ HTTP Error {response.status_code} for {url}")
+        if response.status_code != 200 or not response.content:
             return []
-        
-        if not response.content:
-            logger.error(f"❌ Empty response body from {url}")
-            return []
-        
-        # Parse XML
         try:
             root = ET.fromstring(response.content.strip())
-            logger.info(f"✅ XML parsed successfully")
-        except ET.ParseError as e:
-            logger.error(f"❌ XML Parse error: {e}")
-            logger.error(f"First 500 chars of response: {response.text[:500]}")
+        except ET.ParseError:
             return []
-            
-        # Find items - try RSS first, then Atom
-        items = root.findall(".//item")
-        if not items:
-            items = root.findall(".//{http://www.w3.org/2005/Atom}entry")
-        
-        logger.info(f"📋 Found {len(items)} total items in feed")
-        
+
+        items = root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry")
         news_list = []
-        for idx, item in enumerate(items[:limit]):
-            # Extract RSS fields
-            title = item.findtext("title", "").strip() or item.findtext("{http://www.w3.org/2005/Atom}title", "").strip()
-            link = item.findtext("link", "") or item.findtext("{http://www.w3.org/2005/Atom}link", "")
+
+        for item in items[:limit]:
+            title_raw   = item.findtext("title", "").strip() or item.findtext("{http://www.w3.org/2005/Atom}title", "").strip()
+            link        = item.findtext("link", "") or item.findtext("{http://www.w3.org/2005/Atom}link", "")
             description = item.findtext("description", "") or item.findtext("{http://www.w3.org/2005/Atom}summary", "")
-            pub_date = item.findtext("pubDate", "") or item.findtext("{http://www.w3.org/2005/Atom}published", "")
-            
-            # Skip if no valid title
-            if not title:
-                logger.debug(f"⏭️ Item {idx} skipped: no title found")
+            pub_date    = item.findtext("pubDate", "") or item.findtext("{http://www.w3.org/2005/Atom}published", "")
+            source_el   = item.find("source")
+            source_name = source_el.text.strip() if source_el is not None and source_el.text else ""
+
+            if not title_raw:
                 continue
-            
-            # Extract image URL
+
+            # ── Image extraction ──
             image_url = None
-            
-            # 1. Try media:content (BBC primary method)
-            media_content = item.findall('.//{http://search.yahoo.com/mrss/}content')
-            if media_content:
-                for mc in media_content:
-                    url_attr = mc.get('url')
-                    if url_attr and url_attr.strip():
-                        image_url = url_attr
-                        logger.debug(f"✅ Found image via media:content - {title[:30]}...")
-                        break
-            
-            # 2. Try media:thumbnail
-            if not image_url:
-                media_thumb = item.findall('.//{http://search.yahoo.com/mrss/}thumbnail')
-                if media_thumb:
-                    for mt in media_thumb:
-                        url_attr = mt.get('url')
-                        if url_attr and url_attr.strip():
-                            image_url = url_attr
-                            logger.debug(f"✅ Found image via media:thumbnail - {title[:30]}...")
-                            break
-            
-            # 3. Try img src in description with validation
+            for tag in item.findall('.//{http://search.yahoo.com/mrss/}content') + item.findall('.//{http://search.yahoo.com/mrss/}thumbnail'):
+                u = tag.get('url', '').strip()
+                if u:
+                    image_url = u
+                    break
             if not image_url and description:
-                import re
-                img_matches = re.finditer(r'<img[^>]+src="([^">]+)"', description)
-                for img_match in img_matches:
-                    src = img_match.group(1).strip()
-                    # Validate image URL is not tracking pixel or broken
-                    if (src and 
-                        "tracking" not in src.lower() and 
-                        "pixel" not in src.lower() and
-                        "1x1" not in src and
-                        "news.google.com" not in src):
-                        image_url = src
-                        logger.debug(f"✅ Found image in description - {title[:30]}...")
-                        break
+                m = re.search(r'<img[^>]+src="([^"]+)"', description)
+                if m and 'tracking' not in m.group(1) and '1x1' not in m.group(1):
+                    image_url = m.group(1)
 
-            # Clean HTML and entities
-            import re
-            clean_desc = re.sub('<[^<]+?>', '', description).strip()
-            clean_title = html.unescape(title)
-            clean_desc = html.unescape(clean_desc)
+            # ── Clean text ──
+            clean_title = html.unescape(re.sub('<[^>]+>', '', title_raw)).strip()
+            clean_desc  = html.unescape(re.sub('<[^>]+>', '', description)).strip()
             
-            # Final validation
-            if not clean_title.strip():
-                logger.debug(f"⏭️ Item skipped after cleanup: title empty")
+            # Build a longer content block from the RSS description (no scraping needed)
+            content = clean_desc  # Full description as available from RSS
+
+            if not clean_title:
                 continue
 
-            news_list.append({
-                "title": clean_title,
-                "link": link or "#",
-                "description": clean_desc[:200] + "..." if len(clean_desc) > 200 else clean_desc,
-                "pubDate": pub_date,
-                "imageUrl": image_url
-            })
-            logger.debug(f"✅ Article {len(news_list)} added: {clean_title[:40]}...")
-        
-        logger.info(f"✅ Successfully parsed {len(news_list)} articles from feed")
+            article_id = _make_id(link or clean_title)
+
+            article = {
+                "id":          article_id,
+                "title":       clean_title,
+                "link":        link or "#",
+                "description": clean_desc[:300] + "..." if len(clean_desc) > 300 else clean_desc,
+                "content":     content,
+                "pubDate":     pub_date,
+                "imageUrl":    image_url,
+                "source":      source_name,
+                "category":    "environment",
+            }
+            NEWS_CACHE[article_id] = article   # store in global cache
+            news_list.append(article)
+
         return news_list
-    except requests.exceptions.Timeout:
-        logger.error(f"⏱️ Timeout fetching {url} (15s limit)")
-        return []
-    except requests.exceptions.RequestException as e:
-        logger.error(f"🌐 Network error for {url}: {str(e)}")
-        return []
+
     except Exception as e:
-        logger.error(f"❌ Unexpected error parsing {url}: {str(e)}", exc_info=True)
+        logger.error(f"RSS parse error: {e}", exc_info=True)
         return []
 
+
+# ─────────────────────────────────────────────────────────────────
+# GET /news  — list articles (with TTL cache)
+# ─────────────────────────────────────────────────────────────────
 @app.get("/news")
-def get_news(region: str = "world"):
-    if region.lower() == "india":
-        # Google News Search for India - Weather & Air Quality
+async def get_news(region: str = "world", category: str = ""):
+    cache_key = f"{region}:{category}"
+    cached = NEWS_REGION_CACHE.get(cache_key)
+    if cached and (time.time() - cached["fetched_at"]) < NEWS_TTL:
+        logger.info(f"✅ Serving news from cache for: {cache_key}")
+        return {"region": region, "news": cached["articles"], "count": len(cached["articles"]), "cached": True}
+
+    region_lower = region.lower()
+    if region_lower == "india":
         urls = [
-            "https://news.google.com/rss/search?q=weather+air+quality+india&hl=en-IN&gl=IN&ceid=IN:en",
-            "https://news.google.com/rss/search?q=pollution+aqi+india&hl=en-IN&gl=IN&ceid=IN:en"
+            "https://news.google.com/rss/search?q=weather+air+quality+AQI+india&hl=en-IN&gl=IN&ceid=IN:en",
+            "https://news.google.com/rss/search?q=pollution+environment+india&hl=en-IN&gl=IN&ceid=IN:en",
+        ]
+    elif region_lower == "world":
+        urls = [
+            "https://news.google.com/rss/search?q=air+quality+AQI+climate+change&hl=en&gl=US&ceid=US:en",
+            "https://news.google.com/rss/search?q=global+air+pollution+environment&hl=en&gl=US&ceid=US:en",
+            "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
         ]
     else:
-        # World news - Weather & Air Quality / AQI focused
+        q = region.replace(" ", "+")
         urls = [
-            "https://news.google.com/rss/search?q=world+air+quality+aqi&hl=en&gl=US&ceid=US:en",
-            "https://news.google.com/rss/search?q=global+weather+pollution&hl=en&gl=US&ceid=US:en",
-            "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"  # BBC Science & Environment fallback
+            f"https://news.google.com/rss/search?q=weather+AQI+pollution+{q}&hl=en&gl=US&ceid=US:en",
+            f"https://news.google.com/rss/search?q=air+quality+environment+{q}&hl=en&gl=US&ceid=US:en",
         ]
-    
-    news_data = []
+
+    loop = asyncio.get_event_loop()
+    articles = []
     for url in urls:
-        logger.info(f"🔄 Attempting to fetch news from: {url}")
-        news_data = parse_rss(url)
-        if news_data:
-            logger.info(f"✅ Successfully fetched {len(news_data)} articles from {url}")
+        # Run blocking RSS fetch in thread pool so we don't block the event loop
+        articles = await loop.run_in_executor(executor, parse_rss, url)
+        if articles:
             break
-        else:
-            logger.warning(f"⚠️ No articles found from {url}, trying next source...")
-    
-    logger.info(f"✅ Fetched {len(news_data)} news articles for region: {region}")
-    return {"region": region, "news": news_data, "count": len(news_data)}
+        logger.warning(f"⚠️ No articles from {url}")
+
+    NEWS_REGION_CACHE[cache_key] = {"articles": articles, "fetched_at": time.time()}
+    logger.info(f"✅ Fetched {len(articles)} articles for: {cache_key}")
+    return {"region": region, "news": articles, "count": len(articles), "cached": False}
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /news/{id}  — return single cached article (no scraping)
+# ─────────────────────────────────────────────────────────────────
+@app.get("/news/{article_id}")
+def get_article(article_id: str):
+    article = NEWS_CACHE.get(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found. Please refresh the news list first.")
+    return article
 
 
 # ✅ UNIFIED PREDICTION POINT (PRODUCTION READY)
@@ -474,7 +470,7 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
     lon = request.lon
     
     # 1. Prepare API URLs
-    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,surface_pressure,precipitation,temperature_2m,windspeed_10m,winddirection_10m,weathercode&timezone=auto"
+    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,surface_pressure,precipitation,temperature_2m,windspeed_10m,winddirection_10m,weathercode,visibility,cloudcover&daily=uv_index_max&timezone=auto"
     aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
 
     loop = asyncio.get_event_loop()
@@ -521,6 +517,9 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
         humidity = get_hourly_value_for_current_time(h_times, hourly.get("relativehumidity_2m", []), timestamp_str, default=50.0)
         pressure = get_hourly_value_for_current_time(h_times, hourly.get("surface_pressure", []), timestamp_str, default=1013.0)
         rain = get_hourly_value_for_current_time(h_times, hourly.get("precipitation", []), timestamp_str, default=0.0)
+        visibility_km = get_hourly_value_for_current_time(h_times, hourly.get("visibility", []), timestamp_str, default=10000) / 1000.0
+        cloudcover = get_hourly_value_for_current_time(h_times, hourly.get("cloudcover", []), timestamp_str, default=10)
+        uv_index = weather_data.get("daily", {}).get("uv_index_max", [0])[0]
 
         # 5. Run ML Inference
         if timestamp_str:
@@ -532,14 +531,25 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
         else:
             iso_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        result = predictor.predict_by_location(
-            lat=lat, lon=lon,
-            datetime_str=iso_ts,
-            pm25=pm2_5, pm10=pm10, no2=no2, so2=so2, co=co, o3=o3,
-            temp_c=temp, humidity=humidity, 
-            wind_speed=wind_speed, wind_dir=wind_dir,
-            pressure_hpa=pressure, rain_mm=rain
-        )
+        try:
+            result = predictor.predict_by_location(
+                lat=lat, lon=lon,
+                datetime_str=iso_ts,
+                pm25=pm2_5, pm10=pm10, no2=no2, so2=so2, co=co, o3=o3,
+                temp_c=temp, humidity=humidity, 
+                wind_speed=wind_speed, wind_dir=wind_dir,
+                pressure_hpa=pressure, rain_mm=rain
+            )
+        except Exception as pred_err:
+            logger.warning(f"ML Predictor failed, falling back to heuristic: {pred_err}")
+            # Fallback to Open-Meteo's own AQI
+            fallback_aqi = curr_aq.get("us_aqi", 0)
+            result = {
+                "predicted_aqi": fallback_aqi,
+                "aqi_category": get_aqi_status(fallback_aqi),
+                "health_advisory": get_health_alert_for_aqi(fallback_aqi),
+                "model": "fallback_api"
+            }
 
         # 6. Database Persistence
         if db:
@@ -590,6 +600,9 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
                 "wind_speed": wind_speed,
                 "pressure": pressure,
                 "rain": rain,
+                "visibility": visibility_km,
+                "cloudcover": cloudcover,
+                "uv_index": uv_index,
                 "condition": get_weather_condition(curr_wx.get("weathercode", 0))
             }
         })
@@ -610,7 +623,7 @@ async def get_forecast(request: schemas.PredictionRequest):
     lat, lon = request.lat, request.lon
     
     # 1. URLs for Weather and Air Quality (Forecast + 7 Days History)
-    weather_forecast_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,uv_index_max,windspeed_10m_max,sunrise,sunset&hourly=temperature_2m,precipitation_probability,relativehumidity_2m,surface_pressure,visibility,weather_code,is_day,apparent_temperature&timezone=auto"
+    weather_forecast_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,uv_index_max,windspeed_10m_max,sunrise,sunset&hourly=temperature_2m,precipitation_probability,relativehumidity_2m,surface_pressure,visibility,weather_code,is_day,apparent_temperature,windspeed_10m,cloudcover&timezone=auto"
     aq_forecast_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=7&forecast_days=7&timezone=auto"
 
     loop = asyncio.get_event_loop()
@@ -667,6 +680,8 @@ async def get_forecast(request: schemas.PredictionRequest):
                 hum = w_hourly["relativehumidity_2m"][wx_idx]
                 weather_code = w_hourly.get("weather_code", [])[wx_idx] if "weather_code" in w_hourly else 0
                 is_day = w_hourly.get("is_day", [])[wx_idx] if "is_day" in w_hourly else 1
+                wind = w_hourly.get("windspeed_10m", [])[wx_idx] if "windspeed_10m" in w_hourly else 0
+                cloud = w_hourly.get("cloudcover", [])[wx_idx] if "cloudcover" in w_hourly else 0
             except (ValueError, KeyError, IndexError):
                 temp = None
                 apparent_temp = None
@@ -674,18 +689,25 @@ async def get_forecast(request: schemas.PredictionRequest):
                 hum = 0
                 weather_code = 0
                 is_day = 1
+                wind = 0
+                cloud = 0
 
+            # Provide a fallback for missing AQI values so the chart line does not completely break
+            hr_aqi = aq_hourly.get("us_aqi", [])[i] if i < len(aq_hourly.get("us_aqi", [])) else None
+            
             processed_hourly.append({
                 "time": time_str,
-                "aqi": aq_hourly.get("us_aqi", [])[i],
-                "pm2_5": aq_hourly.get("pm2_5", [])[i],
-                "pm10": aq_hourly.get("pm10", [])[i],
+                "aqi": hr_aqi,
+                "pm2_5": aq_hourly.get("pm2_5", [])[i] if i < len(aq_hourly.get("pm2_5", [])) else 0,
+                "pm10": aq_hourly.get("pm10", [])[i] if i < len(aq_hourly.get("pm10", [])) else 0,
                 "temp": temp,
                 "apparent_temp": apparent_temp,
                 "weather_code": weather_code,
                 "is_day": is_day,
                 "precip_prob": precip_prob,
-                "humidity": hum
+                "humidity": hum,
+                "wind": wind,
+                "cloud": cloud
             })
 
         return {
