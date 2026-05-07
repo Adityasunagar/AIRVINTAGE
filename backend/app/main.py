@@ -1,4 +1,6 @@
 # main.py — Main API (dashboard endpoint)
+from typing import List, Dict, Any, Optional
+import time
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
@@ -14,6 +16,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache to prevent Open-Meteo 429 rate limits
+API_CACHE = {}
+CACHE_TTL = 900  # 15 minutes
 # Import our new database modules
 from app.database.database import engine, Base, get_db
 from app.database import schemas, crud
@@ -44,6 +49,10 @@ origins = [
     "http://127.0.0.1:3001",
     "http://127.0.0.1:6669",
 ]
+
+# Allow adding production domains via env var
+if os.getenv("FRONTEND_URL"):
+    origins.extend(os.getenv("FRONTEND_URL").split(","))
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,10 +116,11 @@ def get_moon_phase(date: datetime.date) -> str:
     return "Waning Crescent"
 
 
-# ✅ Convert wind degree → direction
+# ✅ Convert wind degree → direction (16 points)
 def get_wind_direction(deg):
-    dirs = ["N","NE","E","SE","S","SW","W","NW"]
-    return dirs[int((deg + 22.5) / 45) % 8]
+    val = int((deg / 22.5) + 0.5)
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    return dirs[val % 16]
 
 
 def get_hourly_value_for_current_time(hourly_times, hourly_values, current_time, default=None):
@@ -134,7 +144,7 @@ def get_hourly_value_for_current_time(hourly_times, hourly_values, current_time,
 @app.get("/weather")
 def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
 
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,visibility&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,visibility&daily=temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto"
 
     response = requests.get(url)
     data = response.json()
@@ -165,7 +175,8 @@ def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
         "wind_direction": get_wind_direction(current["winddirection"]),
         "visibility": visibility_m / 1000,  # meters → km
         "condition": get_weather_condition(current["weathercode"]),
-        "is_day": current.get("is_day", 1)
+        "is_day": current.get("is_day", 1),
+        "uv_index": data.get("daily", {}).get("uv_index_max", [None])[0]
     }
 
     # Save to PostgreSQL (if DB is active)
@@ -186,9 +197,14 @@ def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
                 humidity=weather["humidity"],
                 pressure=None,
                 wind_speed=weather["wind_speed"],
+                wind_direction=weather["wind_direction"],
                 cloud_cover=None,
                 visibility=weather["visibility"],
-                precipitation=None
+                precipitation=None,
+                max_temp=weather["max_temp"],
+                min_temp=weather["min_temp"],
+                is_day=weather["is_day"],
+                uv_index=weather["uv_index"]
             )
             db_weather = crud.create_weather(db, weather_schema, location_id=db_loc.location_id)
             logger.info(f"✓ Weather data created with ID: {db_weather.weather_id}")
@@ -286,7 +302,11 @@ def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
             # 2. Create Environmental Data
             env_schema = schemas.EnvironmentalDataCreate(
                 pm2_5=aqi_data["pm2_5"],
-                pm10=aqi_data["pm10"]
+                pm10=aqi_data["pm10"],
+                no2=aqi_data["nitrogen_dioxide"],
+                co=aqi_data["carbon_monoxide"],
+                so2=aqi_data["sulphur_dioxide"],
+                o3=aqi_data["ozone"]
             )
             db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
             logger.info(f"✓ Environmental data created with ID: {db_env.data_id}")
@@ -407,6 +427,68 @@ def parse_rss(url: str, limit: int = 12) -> list:
 # ─────────────────────────────────────────────────────────────────
 # GET /news  — list articles (with TTL cache)
 # ─────────────────────────────────────────────────────────────────
+def fetch_guardian_news(region: str):
+    key = os.environ.get("GUARDIAN_API_KEY", "test")
+    q = "environment OR climate OR pollution"
+    if region.lower() != "world":
+        q = f"({q}) AND {region}"
+    url = f"https://content.guardianapis.com/search?q={q}&section=environment&show-fields=thumbnail,bodyText,trailText&api-key={key}"
+    try:
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        articles = []
+        for item in data.get("response", {}).get("results", []):
+            fields = item.get("fields", {})
+            article_id = _make_id(item.get("webUrl", ""))
+            article = {
+                "id": article_id,
+                "title": item.get("webTitle", ""),
+                "link": item.get("webUrl", ""),
+                "description": fields.get("trailText", ""),
+                "content": fields.get("bodyText", ""),
+                "pubDate": item.get("webPublicationDate", ""),
+                "imageUrl": fields.get("thumbnail", ""),
+                "source": "The Guardian",
+                "category": "environment"
+            }
+            NEWS_CACHE[article_id] = article
+            articles.append(article)
+        return articles
+    except Exception as e:
+        logger.error(f"Guardian API error: {e}")
+        return []
+
+def fetch_gnews(region: str):
+    key = os.environ.get("GNEWS_API_KEY")
+    if not key:
+        return []
+    
+    country = "in" if region.lower() == "india" else "us"
+    url = f"https://gnews.io/api/v4/search?q=air+quality+OR+pollution+OR+AQI&lang=en&country={country}&max=10&apikey={key}"
+    try:
+        r = requests.get(url, timeout=10)
+        data = r.json()
+        articles = []
+        for item in data.get("articles", []):
+            article_id = _make_id(item.get("url", ""))
+            article = {
+                "id": article_id,
+                "title": item.get("title", ""),
+                "link": item.get("url", ""),
+                "description": item.get("description", ""),
+                "content": item.get("content", ""),
+                "pubDate": item.get("publishedAt", ""),
+                "imageUrl": item.get("image", ""),
+                "source": item.get("source", {}).get("name", "GNews"),
+                "category": "environment"
+            }
+            NEWS_CACHE[article_id] = article
+            articles.append(article)
+        return articles
+    except Exception as e:
+        logger.error(f"GNews API error: {e}")
+        return []
+
 @app.get("/news")
 async def get_news(region: str = "world", category: str = ""):
     cache_key = f"{region}:{category}"
@@ -415,33 +497,42 @@ async def get_news(region: str = "world", category: str = ""):
         logger.info(f"✅ Serving news from cache for: {cache_key}")
         return {"region": region, "news": cached["articles"], "count": len(cached["articles"]), "cached": True}
 
-    region_lower = region.lower()
-    if region_lower == "india":
-        urls = [
-            "https://news.google.com/rss/search?q=weather+air+quality+AQI+india&hl=en-IN&gl=IN&ceid=IN:en",
-            "https://news.google.com/rss/search?q=pollution+environment+india&hl=en-IN&gl=IN&ceid=IN:en",
-        ]
-    elif region_lower == "world":
-        urls = [
-            "https://news.google.com/rss/search?q=air+quality+AQI+climate+change&hl=en&gl=US&ceid=US:en",
-            "https://news.google.com/rss/search?q=global+air+pollution+environment&hl=en&gl=US&ceid=US:en",
-            "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
-        ]
-    else:
-        q = region.replace(" ", "+")
-        urls = [
-            f"https://news.google.com/rss/search?q=weather+AQI+pollution+{q}&hl=en&gl=US&ceid=US:en",
-            f"https://news.google.com/rss/search?q=air+quality+environment+{q}&hl=en&gl=US&ceid=US:en",
-        ]
-
     loop = asyncio.get_event_loop()
-    articles = []
-    for url in urls:
-        # Run blocking RSS fetch in thread pool so we don't block the event loop
-        articles = await loop.run_in_executor(executor, parse_rss, url)
-        if articles:
-            break
-        logger.warning(f"⚠️ No articles from {url}")
+    
+    # 1. Fetch from Premium APIs concurrently
+    guardian_task = loop.run_in_executor(executor, fetch_guardian_news, region)
+    gnews_task = loop.run_in_executor(executor, fetch_gnews, region)
+    
+    guardian_articles, gnews_articles = await asyncio.gather(guardian_task, gnews_task)
+    articles = guardian_articles + gnews_articles
+    
+    # 2. Fallback to robust RSS scraping if APIs fail or keys missing
+    if not articles:
+        region_lower = region.lower()
+        if region_lower == "india":
+            urls = [
+                "https://news.google.com/rss/search?q=weather+air+quality+AQI+india+when:7d&hl=en-IN&gl=IN&ceid=IN:en",
+                "https://news.google.com/rss/search?q=pollution+environment+india+when:7d&hl=en-IN&gl=IN&ceid=IN:en",
+            ]
+        elif region_lower == "world":
+            urls = [
+                "https://news.google.com/rss/search?q=air+quality+AQI+climate+change+when:7d&hl=en&gl=US&ceid=US:en",
+                "https://news.google.com/rss/search?q=global+air+pollution+environment+when:7d&hl=en&gl=US&ceid=US:en",
+                "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+            ]
+        else:
+            q = region.replace(" ", "+")
+            urls = [
+                f"https://news.google.com/rss/search?q=weather+AQI+pollution+{q}+when:7d&hl=en&gl=US&ceid=US:en",
+                f"https://news.google.com/rss/search?q=air+quality+environment+{q}+when:7d&hl=en&gl=US&ceid=US:en",
+            ]
+
+        for url in urls:
+            rss_articles = await loop.run_in_executor(executor, parse_rss, url)
+            if rss_articles:
+                articles = rss_articles
+                break
+            logger.warning(f"⚠️ No articles from {url}")
 
     NEWS_REGION_CACHE[cache_key] = {"articles": articles, "fetched_at": time.time()}
     logger.info(f"✅ Fetched {len(articles)} articles for: {cache_key}")
@@ -469,8 +560,8 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
     lat = request.lat
     lon = request.lon
     
-    # 1. Prepare API URLs
-    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,surface_pressure,precipitation,temperature_2m,windspeed_10m,winddirection_10m,weathercode,visibility,cloudcover&daily=uv_index_max&timezone=auto"
+    # 1. Prepare API URLs - Using modern `current` parameter for exact real-time data
+    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=visibility,precipitation_probability,dewpoint_2m&daily=uv_index_max,sunrise,sunset&timezone=auto"
     aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
 
     loop = asyncio.get_event_loop()
@@ -478,13 +569,38 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
     try:
         # 2. Fetch data concurrently
         def fetch_json(url):
-            try:
-                r = requests.get(url, timeout=10)
-                r.raise_for_status()
-                return r.json()
-            except Exception as e:
-                logger.error(f"API Fetch Error for {url}: {e}")
-                return {}
+            """Fetch URL with increased timeout, 15-min cache, and one automatic retry."""
+            now = time.time()
+            # 1. Check cache
+            if url in API_CACHE:
+                cached_time, cached_data = API_CACHE[url]
+                if now - cached_time < CACHE_TTL:
+                    return cached_data
+
+            # 2. Fetch with retry
+            for attempt in range(2):
+                try:
+                    r = requests.get(url, timeout=25)
+                    r.raise_for_status()
+                    data = r.json()
+                    API_CACHE[url] = (now, data)
+                    return data
+                except requests.exceptions.ReadTimeout:
+                    if attempt == 0:
+                        logger.warning(f"Timeout on attempt 1 for {url[:80]}..., retrying...")
+                        time.sleep(2)
+                    else:
+                        logger.error(f"API Fetch Timed Out (2 attempts) for {url[:80]}...")
+                        # On failure, return old cached data if it exists (stale-while-revalidate)
+                        if url in API_CACHE:
+                            return API_CACHE[url][1]
+                        return {}
+                except Exception as e:
+                    logger.error(f"API Fetch Error for {url[:80]}...: {e}")
+                    if url in API_CACHE:
+                        return API_CACHE[url][1]
+                    return {}
+            return {}
 
         weather_task = loop.run_in_executor(executor, fetch_json, weather_url)
         aq_task = loop.run_in_executor(executor, fetch_json, aq_url)
@@ -503,23 +619,33 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
         so2 = curr_aq.get("sulphur_dioxide", 0)
         o3 = curr_aq.get("ozone", 0)
 
-        # 4. Extract weather
-        curr_wx = weather_data.get("current_weather", {})
-        temp = curr_wx.get("temperature", 25.0)
-        wind_speed = curr_wx.get("windspeed", 5.0)
-        wind_dir = curr_wx.get("winddirection", 0)
-        
-        # Hourly data for pressure, humidity, rain
-        hourly = weather_data.get("hourly", {})
-        h_times = hourly.get("time", [])
+        # 4. Extract exact current weather
+        curr_wx = weather_data.get("current", {})
+        temp = curr_wx.get("temperature_2m", 25.0)
+        wind_speed = curr_wx.get("wind_speed_10m", 5.0)
+        wind_dir = curr_wx.get("wind_direction_10m", 0)
+        humidity = curr_wx.get("relative_humidity_2m", 50.0)
+        pressure = curr_wx.get("surface_pressure", 1013.0)
+        rain = curr_wx.get("precipitation", 0.0)
+        cloudcover = curr_wx.get("cloud_cover", 0)
+        weather_code = curr_wx.get("weather_code", 0)
+        is_day = curr_wx.get("is_day", 1)
+        feels_like = curr_wx.get("apparent_temperature", temp)
+        wind_gusts = curr_wx.get("wind_gusts_10m", wind_speed)
         timestamp_str = curr_wx.get("time")
         
-        humidity = get_hourly_value_for_current_time(h_times, hourly.get("relativehumidity_2m", []), timestamp_str, default=50.0)
-        pressure = get_hourly_value_for_current_time(h_times, hourly.get("surface_pressure", []), timestamp_str, default=1013.0)
-        rain = get_hourly_value_for_current_time(h_times, hourly.get("precipitation", []), timestamp_str, default=0.0)
+        # Visibility is only available in hourly, so we still parse it
+        hourly = weather_data.get("hourly", {})
+        h_times = hourly.get("time", [])
         visibility_km = get_hourly_value_for_current_time(h_times, hourly.get("visibility", []), timestamp_str, default=10000) / 1000.0
-        cloudcover = get_hourly_value_for_current_time(h_times, hourly.get("cloudcover", []), timestamp_str, default=10)
-        uv_index = weather_data.get("daily", {}).get("uv_index_max", [0])[0]
+        precip_prob = get_hourly_value_for_current_time(h_times, hourly.get("precipitation_probability", []), timestamp_str, default=0)
+        dewpoint = get_hourly_value_for_current_time(h_times, hourly.get("dewpoint_2m", []), timestamp_str, default=temp)
+        
+        daily = weather_data.get("daily", {})
+        uv_index = daily.get("uv_index_max", [0])[0]
+        sunrise = daily.get("sunrise", [None])[0]
+        sunset = daily.get("sunset", [None])[0]
+        moon_phase = get_moon_phase(datetime.datetime.now().date())
 
         # 5. Run ML Inference
         if timestamp_str:
@@ -563,9 +689,29 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
                     temperature=temp,
                     humidity=humidity,
                     pm2_5=pm2_5,
-                    pm10=pm10
+                    pm10=pm10,
+                    no2=no2,
+                    co=co,
+                    so2=so2,
+                    o3=o3
                 )
                 db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
+                
+                # Create Weather Data
+                weather_schema = schemas.WeatherCreate(
+                    temperature=temp,
+                    condition=get_weather_condition(weather_code),
+                    humidity=humidity,
+                    pressure=pressure,
+                    wind_speed=wind_speed,
+                    wind_direction=get_wind_direction(wind_dir),
+                    cloud_cover=cloudcover,
+                    visibility=visibility_km,
+                    precipitation=rain,
+                    is_day=is_day,
+                    uv_index=uv_index
+                )
+                crud.create_weather(db, weather_schema, location_id=db_loc.location_id)
                 
                 # Create Prediction
                 pred_schema = schemas.PredictionCreate(
@@ -596,14 +742,23 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
             "ozone": o3,
             "weather_data": {
                 "temperature": temp,
+                "feels_like": feels_like,
                 "humidity": humidity,
+                "dewpoint": dewpoint,
                 "wind_speed": wind_speed,
+                "wind_gusts": wind_gusts,
+                "wind_direction": get_wind_direction(wind_dir),
+                "wind_deg": wind_dir,
                 "pressure": pressure,
                 "rain": rain,
+                "precip_prob": precip_prob,
                 "visibility": visibility_km,
                 "cloudcover": cloudcover,
                 "uv_index": uv_index,
-                "condition": get_weather_condition(curr_wx.get("weathercode", 0))
+                "condition": get_weather_condition(weather_code),
+                "sunrise": sunrise,
+                "sunset": sunset,
+                "moon_phase": moon_phase
             }
         })
 
@@ -630,13 +785,35 @@ async def get_forecast(request: schemas.PredictionRequest):
     
     try:
         def fetch_json(url):
-            try:
-                r = requests.get(url, timeout=10)
-                r.raise_for_status()
-                return r.json()
-            except Exception as e:
-                logger.error(f"API Fetch Error for {url}: {e}")
-                return {}
+            """Fetch URL with increased timeout, 15-min cache, and one automatic retry."""
+            now = time.time()
+            if url in API_CACHE:
+                cached_time, cached_data = API_CACHE[url]
+                if now - cached_time < CACHE_TTL:
+                    return cached_data
+
+            for attempt in range(2):
+                try:
+                    r = requests.get(url, timeout=25)
+                    r.raise_for_status()
+                    data = r.json()
+                    API_CACHE[url] = (now, data)
+                    return data
+                except requests.exceptions.ReadTimeout:
+                    if attempt == 0:
+                        logger.warning(f"Timeout on attempt 1 for {url[:80]}..., retrying...")
+                        time.sleep(2)
+                    else:
+                        logger.error(f"Forecast API Timed Out (2 attempts) for {url[:80]}...")
+                        if url in API_CACHE:
+                            return API_CACHE[url][1]
+                        return {}
+                except Exception as e:
+                    logger.error(f"API Fetch Error for {url[:80]}...: {e}")
+                    if url in API_CACHE:
+                        return API_CACHE[url][1]
+                    return {}
+            return {}
 
         w_task = loop.run_in_executor(executor, fetch_json, weather_forecast_url)
         aq_task = loop.run_in_executor(executor, fetch_json, aq_forecast_url)

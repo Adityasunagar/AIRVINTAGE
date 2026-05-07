@@ -11,7 +11,7 @@ const ForecastCard = ({ lat, lon, onClick }) => {
     const fetchForecast = async () => {
       setLoading(true);
       try {
-        const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000';
+        const baseUrl = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
         const response = await fetch(`${baseUrl}/forecast`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -69,7 +69,7 @@ const ForecastCard = ({ lat, lon, onClick }) => {
         </svg>
       </div>
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         {upcoming.map((day, i) => {
           const dateObj = new Date(day.date);
           let dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
@@ -79,16 +79,19 @@ const ForecastCard = ({ lat, lon, onClick }) => {
           return (
             <div key={day.date} style={{ 
               display: 'flex', 
+              flexDirection: 'column',
               alignItems: 'center', 
-              justifyContent: 'space-between', 
-              padding: '12px 0', 
-              borderBottom: i < upcoming.length - 1 ? '1px solid rgba(128,128,128,0.1)' : 'none' 
+              justifyContent: 'center', 
+              padding: '16px', 
+              background: 'rgba(128,128,128,0.05)',
+              borderRadius: '12px',
+              border: '1px solid rgba(128,128,128,0.1)'
             }}>
-              <div style={{ fontSize: '15px', color: 'var(--text-2)', width: '100px', fontWeight: '500' }}>{dayLabel}</div>
-              <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-                 <WeatherIcon code={day.weather_code} size={26} />
+              <div style={{ fontSize: '15px', color: 'var(--text-2)', fontWeight: '500', marginBottom: '8px' }}>{dayLabel}</div>
+              <div style={{ marginBottom: '12px' }}>
+                 <WeatherIcon code={day.weather_code} size={32} />
               </div>
-              <div style={{ display: 'flex', gap: '16px', width: '80px', justifyContent: 'flex-end', fontSize: '15px' }}>
+              <div style={{ display: 'flex', gap: '12px', fontSize: '16px' }}>
                 <span style={{ fontWeight: 'bold', color: 'var(--text-1)' }}>{Math.round(day.temp_max)}°</span>
                 <span style={{ color: 'var(--text-3)' }}>{Math.round(day.temp_min)}°</span>
               </div>

@@ -13,6 +13,8 @@ import NewsDetail from "./components/NewsDetail";
 import SkeletonScreen from "./components/SkeletonScreen";
 import ForecastSection from "./components/forecast/ForecastSection";
 import ForecastCard from "./components/forecast/ForecastCard";
+import SmartRecommendationsCard from "./components/SmartRecommendationsCard";
+import AQITrendChart from "./components/AQITrendChart";
 
 function getAqiColorClass(aqi) {
   if (!aqi) return "";
@@ -59,6 +61,8 @@ function AppInner() {
   const [aqiData, setAqiData]           = useState(null);
   const [loading, setLoading]           = useState(false);
   const [theme, setTheme]               = useState("dark");
+  const [lastUpdated, setLastUpdated]   = useState(null);
+  const [showDetector, setShowDetector] = useState(false);
 
   // Derive "current page" from the URL path for the Navbar active state
   const currentPage = location.pathname.split("/")[1] || "dashboard";
@@ -67,7 +71,8 @@ function AppInner() {
     if (!coords) return;
     setLoading(true);
     try {
-      const resp = await fetch("http://127.0.0.1:8000/predict", {
+      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const resp = await fetch(`${apiUrl}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lat: coords.lat, lon: coords.lon }),
@@ -76,6 +81,7 @@ function AppInner() {
         const data = await resp.json();
         setWeatherData(data.weather_data);
         setAqiData(data);
+        setLastUpdated(new Date());
       }
     } catch (err) {
       console.error("Fetch error:", err);
@@ -88,27 +94,18 @@ function AppInner() {
     if (coordinates) fetchData(coordinates);
   }, [coordinates, fetchData]);
 
+  // Auto-refresh every 5 minutes to give a real-time feel
+  useEffect(() => {
+    if (!coordinates) return;
+    const intervalId = setInterval(() => fetchData(coordinates), 5 * 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [coordinates, fetchData]);
+
   useEffect(() => {
     document.body.className = theme;
   }, [theme]);
 
   const aqiClass = getAqiColorClass(aqiData?.aqi);
-
-  if (!coordinates) {
-    return (
-      <div className={`App ${theme}`}>
-        <div className="sky-background" data-theme={theme}>
-          <div className="stars" />
-          <div className="clouds" />
-          {theme === "light" && <div className="day-atmosphere" />}
-        </div>
-        <LocationDetector
-          setCoordinates={setCoordinates}
-          setLocationName={setLocationName}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className={`App ${theme}`}>
@@ -128,7 +125,18 @@ function AppInner() {
         setTheme={setTheme}
         onRefresh={() => fetchData(coordinates)}
         loading={loading}
+        lastUpdated={lastUpdated}
+        onDetectLocation={() => setShowDetector(true)}
       />
+
+      {/* ── Location Detector overlay — global so it works from any page ── */}
+      {(!coordinates || showDetector) && (
+        <LocationDetector
+          setCoordinates={(c) => { setCoordinates(c); setShowDetector(false); }}
+          setLocationName={setLocationName}
+          onClose={coordinates ? () => setShowDetector(false) : undefined}
+        />
+      )}
 
       {/* ── Routes ── */}
       <Routes>
@@ -169,14 +177,36 @@ function AppInner() {
                   )}
                 </div>
 
+                {/* Location Detector overlay moved to App top-level */}
+
                 <main className="main-content premium-main">
-                  <ForecastCard
-                    lat={coordinates.lat}
-                    lon={coordinates.lon}
-                    onClick={() => navigate("/forecast")}
-                  />
-                  {aqiData && <AQICard aqiData={aqiData} />}
-                  {weatherData && <WeatherCard weatherData={weatherData} />}
+                  {coordinates && (
+                    <ForecastCard
+                      lat={coordinates.lat}
+                      lon={coordinates.lon}
+                      onClick={() => navigate("/forecast")}
+                    />
+                  )}
+
+                  {/* AI Recommendations + AQI Trend side by side */}
+                  <div className="dashboard-insights-row">
+                    {(aqiData || weatherData) && (
+                      <SmartRecommendationsCard aqiData={aqiData} weatherData={weatherData} />
+                    )}
+                    {coordinates && (
+                      <AQITrendChart 
+                        lat={coordinates.lat} 
+                        lon={coordinates.lon} 
+                        currentAqi={aqiData ? aqiData.aqi : null}
+                        currentStatus={aqiData ? aqiData.status : null}
+                      />
+                    )}
+                  </div>
+
+                  <div className="dashboard-insights-row">
+                    {aqiData && <AQICard aqiData={aqiData} />}
+                    {weatherData && <WeatherCard weatherData={weatherData} />}
+                  </div>
                   {coordinates && aqiData && (
                     <DashboardMapCard
                       coordinates={coordinates}
@@ -213,7 +243,13 @@ function AppInner() {
               <h2 className="section-title" style={{ margin: "20px 0", color: "var(--text-1)" }}>
                 Detailed Forecast
               </h2>
-              <ForecastSection lat={coordinates.lat} lon={coordinates.lon} />
+              {coordinates ? (
+                <ForecastSection lat={coordinates.lat} lon={coordinates.lon} />
+              ) : (
+                <div style={{ padding: "100px 20px", textAlign: "center", color: "var(--text-2)" }}>
+                  Please detect your location first.
+                </div>
+              )}
             </div>
           }
         />

@@ -5,14 +5,14 @@ AQI constants, bucket thresholds, and shared column definitions
 used across all 6 AirVintage models.
 """
 
-# ─── AQI Bucket Thresholds (India CPCB Standard) ──────────────────────────────
+# ─── AQI Bucket Thresholds (US EPA Standard) ──────────────────────────────
 AQI_LIMITS = {
-    "Good"         : (0,   50),
-    "Satisfactory" : (51,  100),
-    "Moderate"     : (101, 200),
-    "Poor"         : (201, 300),
-    "Very Poor"    : (301, 400),
-    "Severe"       : (401, 9999),
+    "Good"                           : (0,   50),
+    "Moderate"                       : (51,  100),
+    "Unhealthy for Sensitive Groups" : (101, 150),
+    "Unhealthy"                      : (151, 200),
+    "Very Unhealthy"                 : (201, 300),
+    "Hazardous"                      : (301, 9999),
 }
 
 # ─── Shared Pollutant Columns ──────────────────────────────────────────────────
@@ -34,12 +34,12 @@ WEATHER_COLS = [
 
 # ─── AQI Color Palette for Plots ──────────────────────────────────────────────
 AQI_COLORS = {
-    "Good"         : "#2ecc71",
-    "Satisfactory" : "#f1c40f",
-    "Moderate"     : "#e67e22",
-    "Poor"         : "#e74c3c",
-    "Very Poor"    : "#8e44ad",
-    "Severe"       : "#2c3e50",
+    "Good"                           : "#4ade80",
+    "Moderate"                       : "#facc15",
+    "Unhealthy for Sensitive Groups" : "#fb923c",
+    "Unhealthy"                      : "#f87171",
+    "Very Unhealthy"                 : "#c084fc",
+    "Hazardous"                      : "#7e2222",
 }
 
 
@@ -77,23 +77,23 @@ def health_advisory(bucket: str) -> dict:
             "message": "Air quality is good.",
             "recommendation": "Ideal for all outdoor activities and physical exercise."
         },
-        "Satisfactory": {
-            "message": "Air quality is acceptable.",
-            "recommendation": "Most people can enjoy outdoor activities without risk."
-        },
         "Moderate": {
-            "message": "Air quality is moderate.",
-            "recommendation": "Sensitive individuals (asthma, heart disease) should reduce intense outdoor exertion."
+            "message": "Air quality is acceptable.",
+            "recommendation": "Unusually sensitive people should consider limiting prolonged outdoor activity."
         },
-        "Poor": {
-            "message": "Everyone may begin to experience health effects.",
-            "recommendation": "Avoid prolonged or heavy outdoor exertion. Children and elderly should stay indoors."
+        "Unhealthy for Sensitive Groups": {
+            "message": "Air quality is unhealthy for sensitive groups.",
+            "recommendation": "Members of sensitive groups should limit prolonged outdoor exertion."
         },
-        "Very Poor": {
+        "Unhealthy": {
+            "message": "Air quality is unhealthy.",
+            "recommendation": "Everyone may begin to experience health effects. Limit prolonged outdoor exertion."
+        },
+        "Very Unhealthy": {
             "message": "Health alert: serious risk to the general public.",
-            "recommendation": "Avoid all outdoor physical activity. Keep windows closed and use air purifiers."
+            "recommendation": "Avoid prolonged or heavy outdoor exertion. Everyone should stay indoors if possible."
         },
-        "Severe": {
+        "Hazardous": {
             "message": "Health warning: Emergency conditions.",
             "recommendation": "Total avoidance of outdoor activities. Everyone should remain indoors with filtered air."
         },

@@ -29,17 +29,35 @@ export default function TemperatureLayer({ show = true, refreshKey = 0 }) {
       const bounds = map.getBounds();
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
-      const STEPS = 6;
-      const latStep = (ne.lat - sw.lat) / STEPS;
-      const lngStep = (ne.lng - sw.lng) / STEPS;
+      const latDiff = ne.lat - sw.lat;
+      const lngDiff = ne.lng - sw.lng;
+      const maxDiff = Math.max(latDiff, lngDiff);
+      
+      const rawStep = maxDiff / 6;
+      
+      const order = Math.pow(10, Math.floor(Math.log10(rawStep)));
+      const norm = rawStep / order;
+      let qStep;
+      if (norm < 1.5) qStep = 1;
+      else if (norm < 3.5) qStep = 2;
+      else if (norm < 7.5) qStep = 5;
+      else qStep = 10;
+      const step = Math.max(0.01, qStep * order);
+
+      const startLat = Math.floor(sw.lat / step) * step;
+      const endLat = Math.ceil(ne.lat / step) * step;
+      const startLng = Math.floor(sw.lng / step) * step;
+      const endLng = Math.ceil(ne.lng / step) * step;
 
       const lats = [];
       const lngs = [];
-      for (let i = 0; i <= STEPS; i++) {
-        for (let j = 0; j <= STEPS; j++) {
-          lats.push((sw.lat + i * latStep).toFixed(3));
-          lngs.push((sw.lng + j * lngStep).toFixed(3));
+      for (let lat = startLat; lat <= endLat; lat += step) {
+        for (let lng = startLng; lng <= endLng; lng += step) {
+          lats.push(lat.toFixed(3));
+          lngs.push(lng.toFixed(3));
+          if (lats.length >= 100) break;
         }
+        if (lats.length >= 100) break;
       }
 
       let points = [];

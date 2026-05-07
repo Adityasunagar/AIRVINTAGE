@@ -22,7 +22,8 @@ const NewsPage = ({ theme, locationName }) => {
     setArticleContent(null);
     
     try {
-      const res = await fetch(`http://127.0.0.1:8000/article?url=${encodeURIComponent(url)}`);
+      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${apiUrl}/article?url=${encodeURIComponent(url)}`);
       if (res.ok) {
          const data = await res.json();
          if (data.error) throw new Error(data.error);
@@ -48,7 +49,8 @@ const NewsPage = ({ theme, locationName }) => {
     setError(null);
     console.log(`🔄 [NewsPage] Fetching ${selectedRegion} news...`);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/news?region=${selectedRegion}`);
+      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${apiUrl}/news?region=${selectedRegion}`);
       console.log(`📊 API Response Status: ${response.status}`);
       
       if (response.ok) {

@@ -46,27 +46,30 @@ export default function PopularLocationsAQI({ show = true, refreshKey = 0 }) {
     }
 
     async function fetchAll() {
-      // Fetch all cities in parallel from our own free backend
-      const results = await Promise.all(
-        POPULAR_LOCATIONS.map(async (loc) => {
-          try {
-            const res = await fetch(`http://127.0.0.1:8000/predict`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ lat: loc.lat, lon: loc.lng })
-            });
-            if (!res.ok) return null;
+      const results = [];
+      for (const loc of POPULAR_LOCATIONS) {
+        try {
+          const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+          const res = await fetch(`${apiUrl}/predict`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: loc.lat, lon: loc.lng })
+          });
+          if (res.ok) {
             const data = await res.json();
-            const aqi = data?.aqi ?? 0;
-            if (aqi <= 0) return null;
-            return { ...loc, aqi, color: getAQIColor(aqi), status: data?.status ?? '' };
-          } catch {
-            return null;
+            const aqi = data?.aqi ?? data?.predicted_aqi ?? 0;
+            if (aqi > 0) {
+              results.push({ ...loc, aqi, color: getAQIColor(aqi), status: data?.status ?? data?.aqi_category ?? '' });
+              // Update state incrementally so markers appear organically
+              setLocationsAQI([...results]);
+            }
           }
-        })
-      );
-
-      setLocationsAQI(results.filter(Boolean));
+        } catch {
+          // Ignore individual fetch failures
+        }
+        // Wait 800ms between requests to prevent Open-Meteo 429 Rate Limiting
+        await new Promise(r => setTimeout(r, 800));
+      }
     }
 
     fetchAll();

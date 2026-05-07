@@ -29,9 +29,14 @@ class Weather(Base):
     humidity = Column(Float)
     pressure = Column(Float)
     wind_speed = Column(Float)
+    wind_direction = Column(String)
     cloud_cover = Column(Integer)
     visibility = Column(Float)
     precipitation = Column(Float)
+    max_temp = Column(Float)
+    min_temp = Column(Float)
+    is_day = Column(Integer)
+    uv_index = Column(Float)
     fetched_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships
@@ -48,6 +53,10 @@ class EnvironmentalData(Base):
     humidity = Column(Float)
     pm2_5 = Column(Float)
     pm10 = Column(Float)
+    no2 = Column(Float)
+    co = Column(Float)
+    so2 = Column(Float)
+    o3 = Column(Float)
     fetched_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships

@@ -30,7 +30,8 @@ export default function NewsDetail() {
 
       // 2. Fallback: fetch from backend cache
       try {
-        const res = await fetch(`http://127.0.0.1:8000/news/${id}`);
+        const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+        const res = await fetch(`${apiUrl}/news/${id}`);
         if (!res.ok) throw new Error(res.status === 404
           ? "Article not found. Please go back and open it from the news list."
           : `Server error (${res.status})`

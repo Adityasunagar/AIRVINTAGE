@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-// Removed unused lucide-react imports
 import WeatherIcon from './WeatherIcon';
 import TrendChart from './TrendChart';
+
+const FORECAST_CACHE = {};
 
 const ForecastSection = ({ lat, lon }) => {
   const [data, setData] = useState(null);
@@ -14,11 +15,18 @@ const ForecastSection = ({ lat, lon }) => {
   useEffect(() => {
     if (!lat || !lon) return;
 
+    const cacheKey = `${lat},${lon}`;
+    if (FORECAST_CACHE[cacheKey]) {
+      setData(FORECAST_CACHE[cacheKey]);
+      setLoading(false);
+      return;
+    }
+
     const fetchForecast = async () => {
       setLoading(true);
       setError(null);
       try {
-        const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000';
+        const baseUrl = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
         const response = await fetch(`${baseUrl}/forecast`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -29,6 +37,8 @@ const ForecastSection = ({ lat, lon }) => {
 
         const result = await response.json();
         if (!result || !result.hourly) throw new Error("Invalid data format");
+        
+        FORECAST_CACHE[cacheKey] = result;
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -40,7 +50,55 @@ const ForecastSection = ({ lat, lon }) => {
     fetchForecast();
   }, [lat, lon]);
 
-  if (loading || error || !data) return null;
+  // --- Loading state ---
+  if (loading) {
+    return (
+      <div className="panel" style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ height: '24px', width: '120px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', animation: 'shimmer 1.5s infinite' }} />
+          {[1,2,3,4].map(i => (
+            <div key={i} style={{ height: '32px', width: '80px', borderRadius: '100px', background: 'rgba(255,255,255,0.06)', animation: 'shimmer 1.5s infinite' }} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+          {[1,2,3,4,5,6,7].map(i => (
+            <div key={i} style={{ flex: i === 1 ? '2 0 160px' : '1 0 90px', height: '110px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', animation: 'shimmer 1.5s infinite' }} />
+          ))}
+        </div>
+        <div style={{ height: '180px', borderRadius: '24px', background: 'rgba(255,255,255,0.04)', animation: 'shimmer 1.5s infinite', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>Fetching 7-day forecast…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Error state ---
+  if (error) {
+    return (
+      <div className="panel" style={{ padding: '32px', textAlign: 'center' }}>
+        <div style={{ fontSize: '36px', marginBottom: '12px' }}>⛅</div>
+        <h3 style={{ color: 'var(--text-1)', margin: '0 0 8px' }}>Forecast Unavailable</h3>
+        <p style={{ color: 'var(--text-3)', fontSize: '14px', margin: '0 0 20px' }}>{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            const base = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
+            fetch(`${base}/forecast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lon }) })
+              .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+              .then(result => { if (!result?.hourly) throw new Error("Invalid data"); setData(result); setLoading(false); })
+              .catch(err => { setError(err.message || err); setLoading(false); });
+          }}
+          style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', padding: '10px 24px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  // --- No data fallback ---
+  if (!data) return null;
 
   const tabs = [
     { id: 'overview', label: 'Overview', key: feelsLike ? 'apparent_temp' : 'temp', unit: '°C' },
@@ -80,7 +138,7 @@ const ForecastSection = ({ lat, lon }) => {
               fontSize: '13px',
               fontWeight: activeTab === tab.id ? '700' : '500',
               background: activeTab === tab.id ? 'var(--accent)' : 'rgba(128, 128, 128, 0.1)',
-              color: activeTab === tab.id ? '#0f172a' : 'var(--text-1)',
+              color: activeTab === tab.id ? 'var(--bg)' : 'var(--text-1)',
               whiteSpace: 'nowrap',
               transition: 'all 0.2s',
               flexShrink: 0
@@ -198,7 +256,7 @@ const ForecastSection = ({ lat, lon }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '0 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)' }} />
-            <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>Temperature</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{currentTab.label}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <MoonIcon />

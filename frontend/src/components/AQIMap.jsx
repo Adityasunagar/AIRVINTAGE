@@ -4,9 +4,7 @@ import {
   MapContainer, TileLayer, Marker,
   Popup, useMap, useMapEvents
 } from "react-leaflet";
-import AQIHeatmapLayer from "./AQIHeatmapLayer";
 import PopularLocationsAQI from "./PopularLocationsAQI";
-import WindLayer from "./WindLayer";
 import TemperatureLayer from "./TemperatureLayer";
 import "leaflet/dist/leaflet.css";
 
@@ -52,6 +50,23 @@ function makePulseIcon(color) {
 }
 
 /* ─────────────────────────────────────────────
+   FlyToOnMount — fixes react-leaflet’s non-reactive center prop.
+   MapContainer.center is set ONCE at mount and never updates when
+   coordinates change. This component flies to the correct position
+   whenever lat/lon props change.
+───────────────────────────────────────────── */
+function FlyToOnMount({ lat, lon }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (lat !== null && lon !== null) {
+      map.flyTo([lat, lon], 14, { duration: 1.2, easeLinearity: 0.25 });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lon]);
+  return null;
+}
+
+/* ─────────────────────────────────────────────
    Recenter / world-copy-aware fly-home
 ───────────────────────────────────────────── */
 function RecenterControl({ lat, lon, onOffCenter, onBackCenter }) {
@@ -79,6 +94,43 @@ function RecenterControl({ lat, lon, onOffCenter, onBackCenter }) {
     return () => { window.__mapFlyHome = null; };
   }, [flyHome]);
 
+  return null;
+}
+
+/* ─────────────────────────────────────────────
+   Map Click Handler for AQI Popup
+───────────────────────────────────────────── */
+function ClickMapEvent({ setPopupData }) {
+  useMapEvents({
+    async click(e) {
+      const { lat, lng } = e.latlng;
+      setPopupData({ lat, lng, loading: true });
+      try {
+        const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=auto`);
+        if (!res.ok) throw new Error("API Error");
+        const data = await res.json();
+        setPopupData({
+          lat, lng, loading: false,
+          aqi: data.current.us_aqi,
+          pm25: data.current.pm2_5
+        });
+      } catch (err) {
+        setPopupData({ lat, lng, loading: false, error: true });
+      }
+    }
+  });
+  return null;
+}
+
+/* ─────────────────────────────────────────────
+   Legend Auto-Collapse Handler
+───────────────────────────────────────────── */
+function LegendCollapseHandler({ legendOpen, setLegendOpen }) {
+  useMapEvents({
+    movestart() {
+      if (legendOpen) setLegendOpen(false);
+    }
+  });
   return null;
 }
 
@@ -143,18 +195,18 @@ function ZoomControls() {
 ───────────────────────────────────────────── */
 function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
   const [offCenter, setOffCenter] = useState(false);
-  const [showHeatMap, setShowHeatMap] = useState(true);
   const [showCities, setShowCities] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [popupData, setPopupData] = useState(null);
 
-  const [baseMap, setBaseMap] = useState(theme === 'dark' ? 'Dark' : 'Map');
+  const [baseMap, setBaseMap] = useState('Dark');
   const [waqiLayer, setWaqiLayer] = useState(false);
 
   // Sync baseMap with global theme toggle when user clicks the nav sun/moon
   useEffect(() => {
     setBaseMap(theme === 'dark' ? 'Dark' : 'Map');
   }, [theme]);
-  const [windLayer, setWindLayer] = useState(false);
   const [tempLayer, setTempLayer] = useState(false);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
 
@@ -179,9 +231,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
     : '0 2px 10px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.12)';
   const dividerColor = isDark ? 'rgba(255,255,255,0.12)' : '#e8eaed';
   const mutedText    = isDark ? 'rgba(255,255,255,0.45)' : '#80868b';
-  const activeItemBg = isDark ? 'rgba(56,189,248,0.18)'  : '#e8f0fe';
-  const activeItemColor = isDark ? '#7dd3fc'              : '#1a73e8';
-  const itemLabelColor  = isDark ? 'rgba(255,255,255,0.75)' : '#3c4043';
+
 
   return (
     <div className={`map-page-full map-theme-${theme}`}>
@@ -201,59 +251,67 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         </div>
       </div>
 
-      {/* ── Guide Card (theme-aware) ── */}
-      <div className="map-guide-card" style={{ background: cardBg, boxShadow: cardShadow, border: `1px solid ${cardBorder}` }}>
-        <h4 style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '700', color: mutedText, margin: '0 0 12px 0' }}>Data Overlays Guide</h4>
-        <div style={{ marginBottom: '10px', lineHeight: '1.4' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: '#22c55e', display: 'block' }}>AQI Heatmap</span>
-          <span style={{ fontSize: '11px', color: mutedText, marginTop: '2px', display: 'block' }}>Air pollution on a 0–300+ scale. Rendered from Open-Meteo free API.</span>
-        </div>
-        <div style={{ marginBottom: '10px', lineHeight: '1.4' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: '#38bdf8', display: 'block' }}>Wind Speed</span>
-          <span style={{ fontSize: '11px', color: mutedText, marginTop: '2px', display: 'block' }}>Directional arrows show wind flow. High wind disperses pollution.</span>
-        </div>
-        <div style={{ lineHeight: '1.4' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: '#f97316', display: 'block' }}>Temperature</span>
-          <span style={{ fontSize: '11px', color: mutedText, marginTop: '2px', display: 'block' }}>Colour blobs show local temperature. Warm air traps pollutants.</span>
-        </div>
+      {/* ── Collapsible Legend Pill (Left Panel) ── */}
+      <div className={`map-legend-container ${legendOpen ? 'open' : ''}`}>
+        {!legendOpen ? (
+          <button className="map-legend-pill glassmorphism-dark" onClick={() => setLegendOpen(true)}>
+            <span style={{ marginRight: '6px' }}>ℹ️</span> Legend
+          </button>
+        ) : (
+          <div className="map-legend-card glassmorphism-dark">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', color: '#e8e8e8' }}>AQI LEGEND</span>
+              <button onClick={() => setLegendOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px' }}>×</button>
+            </div>
+            
+            <div className="legend-current" style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#aaa', textTransform: 'uppercase' }}>Your AQI</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color }}>{aqi} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>· {getAqiLabel(aqi)}</span></div>
+            </div>
+
+            <div className="legend-scale">
+              {[
+                { label: 'Good',          color: '#00e400' },
+                { label: 'Moderate',      color: '#ffff00' },
+                { label: 'Unhealthy (SG)',color: '#ff7e00' },
+                { label: 'Unhealthy',     color: '#ff0000' },
+                { label: 'Very Unhealthy',color: '#8f3f97' },
+                { label: 'Hazardous',     color: '#7e2222' },
+              ].map(item => (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontSize: '12px', color: '#e8e8e8' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: item.color }} />
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Maps & Overlays button ── */}
       <button
-        className={`map-layer-btn ${showLayerMenu ? 'active' : ''}`}
-        style={{ position: 'absolute', bottom: '20px', right: '12px', zIndex: 1000, width: 'auto', padding: '9px 16px', background: cardBg, color: cardText, boxShadow: cardShadow, border: `1px solid ${cardBorder}` }}
+        className={`map-layer-btn ${showLayerMenu ? 'active' : ''} glassmorphism-dark`}
+        style={{ position: 'absolute', bottom: '80px', right: '12px', zIndex: 1000, width: 'auto', padding: '9px 12px', color: '#e8e8e8', border: '1px solid rgba(255,255,255,0.1)' }}
         onClick={() => setShowLayerMenu(!showLayerMenu)}
         title="Maps &amp; Overlays"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
           <polyline points="2 17 12 22 22 17"></polyline>
           <polyline points="2 12 12 17 22 12"></polyline>
         </svg>
-        Maps &amp; Overlays
       </button>
 
-      {/* ── Layer Menu Card (theme-aware) ── */}
-      {showLayerMenu && (
-        <div
-          className="custom-layer-card"
-          style={{
-            position: 'absolute', bottom: '70px', right: '12px', zIndex: 1000,
-            background: cardBg, border: `1px solid ${cardBorder}`,
-            borderRadius: '8px', boxShadow: cardShadow,
-            padding: '16px 18px', minWidth: '220px',
-            maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100vh - 160px)',
-            overflowY: 'auto', color: cardText,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: `1px solid ${dividerColor}`, paddingBottom: '10px' }}>
-            <h4 style={{ fontSize: '14px', margin: 0, fontWeight: 700, letterSpacing: '0.3px', color: cardText }}>Map Layers</h4>
-            <button onClick={() => setShowLayerMenu(false)} style={{ background: 'transparent', border: 'none', color: mutedText, cursor: 'pointer', fontSize: '18px' }}>×</button>
-          </div>
+      {/* ── Layer Menu Card (Slide-In) ── */}
+      <div className={`custom-layer-card glassmorphism-dark ${showLayerMenu ? 'open' : ''}`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '10px' }}>
+          <h4 style={{ fontSize: '14px', margin: 0, fontWeight: 700, letterSpacing: '0.3px', color: '#e8e8e8' }}>Map Layers</h4>
+          <button onClick={() => setShowLayerMenu(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px' }}>×</button>
+        </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Base Maps */}
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: mutedText, marginBottom: '4px' }}>Base Map</div>
+            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Base Map</div>
             {[
               { id: 'Map',       icon: 'map',                label: 'Street Map' },
               { id: 'Satellite', icon: 'satellite-in-orbit', label: 'Satellite'  },
@@ -261,34 +319,29 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
               { id: 'Dark',      icon: 'partly-cloudy-night',label: 'Dark'       },
               { id: 'Light',     icon: 'sun',                label: 'Light'      },
             ].map(l => (
-              <label key={l.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', background: baseMap === l.id ? activeItemBg : 'transparent' }}>
-                <input type="radio" name="basemap" checked={baseMap === l.id} onChange={() => setBaseMap(l.id)}
-                  style={{ accentColor: activeItemColor, width: '15px', height: '15px', cursor: 'pointer' }} />
+              <label key={l.id} className="layer-option">
+                <input type="radio" name="basemap" checked={baseMap === l.id} onChange={() => setBaseMap(l.id)} />
                 <img src={`https://img.icons8.com/fluency/48/${l.icon}.png`} width="18" height="18" alt={l.label} />
-                <span style={{ fontSize: '13px', fontWeight: baseMap === l.id ? 600 : 400, color: baseMap === l.id ? activeItemColor : itemLabelColor }}>{l.label}</span>
+                <span>{l.label}</span>
               </label>
             ))}
 
-            <hr style={{ border: 0, borderTop: `1px solid ${dividerColor}`, margin: '6px 0' }} />
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: mutedText, marginBottom: '4px' }}>Overlays</div>
+            <hr style={{ border: 0, borderTop: `1px solid rgba(255,255,255,0.1)`, margin: '6px 0' }} />
+            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Overlays</div>
 
             {[
-              { id: 'heatmap', icon: 'heat-map',    label: 'AQI Heatmap',   state: showHeatMap, setter: setShowHeatMap },
-              { id: 'cities',  icon: 'city',         label: 'City Markers',  state: showCities,  setter: setShowCities  },
-              { id: 'waqi',    icon: 'air-quality',  label: 'Global AQI',    state: waqiLayer,   setter: setWaqiLayer   },
-              { id: 'wind',    icon: 'wind',         label: 'Wind Speed',    state: windLayer,   setter: setWindLayer   },
-              { id: 'temp',    icon: 'thermometer',  label: 'Temperature',   state: tempLayer,   setter: setTempLayer   },
+              { id: 'cities',  icon: 'city',        label: 'City Markers',  state: showCities,  setter: setShowCities  },
+              { id: 'waqi',    icon: 'air-quality', label: 'Global AQI',    state: waqiLayer,   setter: setWaqiLayer   },
+              { id: 'temp',    icon: 'thermometer', label: 'Temperature',   state: tempLayer,   setter: setTempLayer   },
             ].map(o => (
-              <label key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', background: o.state ? activeItemBg : 'transparent' }}>
-                <input type="checkbox" checked={o.state} onChange={e => o.setter(e.target.checked)}
-                  style={{ accentColor: activeItemColor, width: '15px', height: '15px', cursor: 'pointer' }} />
+              <label key={o.id} className="layer-option">
+                <input type="checkbox" checked={o.state} onChange={e => o.setter(e.target.checked)} />
                 <img src={`https://img.icons8.com/fluency/48/${o.icon}.png`} width="18" height="18" alt={o.label} />
-                <span style={{ fontSize: '13px', fontWeight: o.state ? 600 : 400, color: o.state ? activeItemColor : itemLabelColor }}>{o.label}</span>
+                <span>{o.label}</span>
               </label>
             ))}
           </div>
-        </div>
-      )}
+      </div>
 
       {/* ── My Location button ── */}
       <button
@@ -327,36 +380,54 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         {waqiLayer && <TileLayer url="https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=_TOKEN_" attribution="&copy; WAQI" opacity={0.7} zIndex={10} />}
 
         {/* Working overlays from Open-Meteo (free) */}
-        <AQIHeatmapLayer show={showHeatMap} refreshKey={refreshKey} />
         <PopularLocationsAQI show={showCities} refreshKey={refreshKey} />
-        <WindLayer show={windLayer} refreshKey={refreshKey} />
         <TemperatureLayer show={tempLayer} refreshKey={refreshKey} />
+
+        {/* Auto-fly to user location whenever coordinates change */}
+        <FlyToOnMount lat={lat} lon={lon} />
 
         {/* Controls */}
         <RecenterControl lat={lat} lon={lon} onOffCenter={() => setOffCenter(true)} onBackCenter={() => setOffCenter(false)} />
         <RefreshControl onRefresh={() => setRefreshKey(k => k + 1)} />
         <ZoomControls />
+        <ClickMapEvent setPopupData={setPopupData} />
+        <LegendCollapseHandler legendOpen={legendOpen} setLegendOpen={setLegendOpen} />
+
+        {/* Dynamic click popup */}
+        {popupData && (
+          <Popup position={[popupData.lat, popupData.lng]} onClose={() => setPopupData(null)} className="dark-popup">
+            {popupData.loading ? (
+              <div style={{ color: '#fff', padding: '8px', minWidth: '120px', textAlign: 'center' }}>Fetching AQI...</div>
+            ) : popupData.error ? (
+              <div style={{ color: '#ff4444', padding: '8px' }}>Failed to load data</div>
+            ) : (
+              <div className="aqi-popup-inner" style={{ padding: '4px' }}>
+                <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Air Quality</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: getAqiColor(popupData.aqi) }}>
+                  {popupData.aqi}
+                </div>
+                <div style={{ fontSize: '13px', color: '#e8e8e8', marginBottom: '8px' }}>
+                  {getAqiLabel(popupData.aqi)}
+                </div>
+                <div style={{ fontSize: '12px', color: '#aaa' }}>
+                  PM2.5: <span style={{ color: '#fff', fontWeight: 'bold' }}>{popupData.pm25} µg/m³</span>
+                </div>
+              </div>
+            )}
+          </Popup>
+        )}
 
         {/* Location marker */}
         <Marker position={[lat, lon]} icon={pulseIcon}>
-          <Popup className="aqi-popup">
-            <div className="aqi-popup-inner">
-              <div className="aqi-popup-city">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill={color} style={{ marginRight: 4 }}>
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-                </svg>
-                {city} Air Quality
-              </div>
-              <div className="aqi-popup-score" style={{ color }}>{aqi}</div>
-              <div className="aqi-popup-status-badge" style={{ background: `${color}22`, color, border: `1px solid ${color}55` }}>
-                {aqiData?.status}
-              </div>
+          <Popup className="dark-popup">
+            <div className="aqi-popup-inner" style={{ padding: '4px' }}>
+              <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{city}</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color }}>{aqi}</div>
+              <div style={{ fontSize: '13px', color: '#e8e8e8', marginBottom: '8px' }}>{aqiData?.status}</div>
               {aqiData && (
-                <div className="aqi-popup-metrics">
-                  <div className="popup-metric"><span className="popup-metric-val">{aqiData.pm2_5}</span><span className="popup-metric-lbl">PM2.5</span></div>
-                  <div className="popup-metric"><span className="popup-metric-val">{aqiData.pm10}</span><span className="popup-metric-lbl">PM10</span></div>
-                  <div className="popup-metric"><span className="popup-metric-val">{aqiData.nitrogen_dioxide}</span><span className="popup-metric-lbl">NO₂</span></div>
-                  <div className="popup-metric"><span className="popup-metric-val">{aqiData.ozone}</span><span className="popup-metric-lbl">O₃</span></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#aaa' }}>PM2.5: <span style={{ color: '#fff' }}>{aqiData.pm2_5}</span></div>
+                  <div style={{ fontSize: '11px', color: '#aaa' }}>PM10: <span style={{ color: '#fff' }}>{aqiData.pm10}</span></div>
                 </div>
               )}
             </div>
@@ -364,30 +435,18 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         </Marker>
       </MapContainer>
 
-      {/* Attribution */}
-      <div className="map-attribution">Map data © <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google</a> | <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a></div>
-
-      {/* Floating AQI Legend (theme-aware) */}
-      <div className="map-floating-legend" style={{ background: cardBg, boxShadow: cardShadow, border: `1px solid ${cardBorder}` }}>
-        <div className="legend-title" style={{ color: mutedText, borderBottom: `1px solid ${dividerColor}` }}>AQI Scale</div>
-        {[
-          { label: 'Good',          color: '#22c55e', range: '0–50'   },
-          { label: 'Moderate',      color: '#eab308', range: '51–100' },
-          { label: 'Unhealthy (SG)',color: '#f97316', range: '101–150'},
-          { label: 'Unhealthy',     color: '#ef4444', range: '151–200'},
-          { label: 'Very Unhealthy',  color: '#a855f7', range: '201–300'},
-          { label: 'Hazardous',     color: '#dc2626', range: '301+'   },
-        ].map(item => (
-          <div key={item.label} className="legend-item">
-            <span className="legend-dot" style={{ background: item.color }}/>
-            <span className="legend-label" style={{ color: cardText }}>{item.label}</span>
-            <span className="legend-range" style={{ color: mutedText }}>{item.range}</span>
-          </div>
-        ))}
-        <div className="legend-current" style={{ borderTop: `1px solid ${dividerColor}` }}>
-          <div className="legend-current-label" style={{ color: mutedText }}>Your AQI</div>
-          <div className="legend-current-val" style={{ color }}>{aqi}</div>
-          <div className="legend-current-status" style={{ color }}>{getAqiLabel(aqi)}</div>
+      {/* ── Windy-Style Bottom Info Bar ── */}
+      <div className="windy-bottom-bar">
+        <div className="w-bar-left">
+          {tempLayer ? 'Temperature' : 'AirVintage Map'}
+        </div>
+        <div className="w-bar-center">
+          <span style={{ fontSize: '11px', marginRight: '8px' }}>Good</span>
+          <div className="w-bar-gradient"></div>
+          <span style={{ fontSize: '11px', marginLeft: '8px' }}>Hazardous</span>
+        </div>
+        <div className="w-bar-right">
+          Data: <a href="https://open-meteo.com" target="_blank" rel="noreferrer" style={{ color: '#00d4ff', textDecoration: 'none', marginLeft: '4px' }}>Open-Meteo</a>
         </div>
       </div>
 

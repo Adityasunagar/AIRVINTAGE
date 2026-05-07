@@ -107,10 +107,10 @@ export const useSmartRecommendations = (aqiData, weatherData) => {
 
     // Interpretation
     let category = "Poor";
-    let color = "#ef4444"; // Red
+    let color = "var(--danger)"; // Red
     if (score >= 8) {
       category = "Excellent";
-      color = "#22c55e"; // Green
+      color = "var(--success)"; // Green
       if (alerts.length === 0) {
         alerts.push({
           id: 'perfect',
@@ -122,7 +122,7 @@ export const useSmartRecommendations = (aqiData, weatherData) => {
       }
     } else if (score >= 5) {
       category = "Moderate";
-      color = "#eab308"; // Yellow
+      color = "var(--warn)"; // Yellow
     }
 
     // Explanation string

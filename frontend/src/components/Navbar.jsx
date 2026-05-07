@@ -10,11 +10,16 @@ const NAV_LINKS = [
   { path: "/about",   label: "About"     },
 ];
 
-function Navbar({ locationName, theme, setTheme, onRefresh, loading }) {
+function Navbar({ locationName, theme, setTheme, onRefresh, loading, lastUpdated, onDetectLocation }) {
   const navigate  = useNavigate();
   const location  = useLocation();
   const city      = locationName?.city || null;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Format last-updated time
+  const updatedStr = lastUpdated
+    ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const isActive = (path) =>
     path === "/"
@@ -58,6 +63,30 @@ function Navbar({ locationName, theme, setTheme, onRefresh, loading }) {
               <circle cx="12" cy="10" r="3" />
             </svg>
             {city}
+          </div>
+        )}
+
+        {/* Detect / Change Location button */}
+        {onDetectLocation && (
+          <button
+            className="nav-detect-btn"
+            onClick={onDetectLocation}
+            title="Change your location"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span className="nav-btn-text">{city ? "Change" : "Detect"}</span>
+          </button>
+        )}
+
+        {/* Live indicator */}
+        {updatedStr && (
+          <div className="nav-live-chip" title={`Last updated at ${updatedStr}`}>
+            <span className="nav-live-dot" />
+            <span className="nav-live-label">LIVE</span>
           </div>
         )}
 
