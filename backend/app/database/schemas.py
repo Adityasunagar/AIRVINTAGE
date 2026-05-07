@@ -33,9 +33,14 @@ class WeatherBase(BaseModel):
     humidity: Optional[float] = None
     pressure: Optional[float] = None
     wind_speed: Optional[float] = None
+    wind_direction: Optional[str] = None
     cloud_cover: Optional[int] = None
     visibility: Optional[float] = None
     precipitation: Optional[float] = None
+    max_temp: Optional[float] = None
+    min_temp: Optional[float] = None
+    is_day: Optional[int] = None
+    uv_index: Optional[float] = None
 
 class WeatherCreate(WeatherBase):
     pass
@@ -56,6 +61,10 @@ class EnvironmentalDataBase(BaseModel):
     humidity: Optional[float] = None
     pm2_5: Optional[float] = None
     pm10: Optional[float] = None
+    no2: Optional[float] = None
+    co: Optional[float] = None
+    so2: Optional[float] = None
+    o3: Optional[float] = None
 
 class EnvironmentalDataCreate(EnvironmentalDataBase):
     pass

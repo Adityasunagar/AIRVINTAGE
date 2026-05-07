@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-function LocationDetector({ setCoordinates, setLocationName }) {
+function LocationDetector({ setCoordinates, setLocationName, onClose }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -108,6 +108,8 @@ function LocationDetector({ setCoordinates, setLocationName }) {
 
                 setCoordinates({ lat, lon });
                 setLoading(false);
+                // Close the modal overlay after location is set
+                if (onClose) onClose();
             },
             () => {
                 setError("Location access denied. Please allow it in your browser.");
@@ -117,8 +119,25 @@ function LocationDetector({ setCoordinates, setLocationName }) {
     };
 
     return (
-        <div className="location-modal-overlay">
-            <div className="location-modal-card">
+        <div className="location-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget && onClose) onClose(); }}>
+            <div className="location-modal-card" style={{ position: 'relative' }}>
+                {/* Close button — only shown when onClose is available (re-detect flow) */}
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        style={{
+                            position: 'absolute', top: '14px', right: '14px',
+                            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '50%', width: '28px', height: '28px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '14px',
+                            lineHeight: 1, padding: 0,
+                        }}
+                        title="Close"
+                    >
+                        ✕
+                    </button>
+                )}
                 <div className="modal-icon-wrap">
                     <span className="modal-icon">🍃</span>
                 </div>

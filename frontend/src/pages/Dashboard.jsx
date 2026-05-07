@@ -68,7 +68,8 @@ function Dashboard() {
 		setLoading(true);
 
 		try {
-			const response = await fetch(`http://127.0.0.1:8000/predict`, {
+			const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+			const response = await fetch(`${apiUrl}/predict`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ lat: coords.lat, lon: coords.lon })
@@ -167,9 +168,6 @@ function Dashboard() {
 								) : null}
 							</div>
 
-							<div style={{ color: 'red', fontWeight: 'bold', textAlign: 'center', padding: '10px', background: 'yellow', zIndex: 9999 }}>
-								--- DEBUG: FORECAST COMPONENT MOUNT POINT ---
-							</div>
 							<div className="forecast-outer-container" style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', padding: '0 20px' }}>
 								<ForecastSection lat={coordinates.lat} lon={coordinates.lon} />
 							</div>

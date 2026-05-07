@@ -11,3 +11,4 @@ lightgbm
 catboost
 scikit-learn
 python-dotenv
+beautifulsoup4

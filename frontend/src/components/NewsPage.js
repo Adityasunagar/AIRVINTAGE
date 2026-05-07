@@ -1,17 +1,56 @@
 import React, { useState, useEffect, useCallback } from "react";
 
-const NewsPage = ({ theme }) => {
-  const [region, setRegion] = useState("india");
+const NewsPage = ({ theme, locationName }) => {
+  const localCity = locationName?.city;
+  const [region, setRegion] = useState(localCity || "world");
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Article Reader State
+  const [activeArticle, setActiveArticle] = useState(null);
+  const [articleContent, setArticleContent] = useState(null);
+  const [fetchingArticle, setFetchingArticle] = useState(false);
+  const [articleError, setArticleError] = useState(null);
+
+  const openArticle = async (e, url) => {
+    if (region !== localCity) return; // Allow normal redirect if not local
+    e.preventDefault();
+    setActiveArticle(url);
+    setFetchingArticle(true);
+    setArticleError(null);
+    setArticleContent(null);
+    
+    try {
+      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const res = await fetch(`${apiUrl}/article?url=${encodeURIComponent(url)}`);
+      if (res.ok) {
+         const data = await res.json();
+         if (data.error) throw new Error(data.error);
+         setArticleContent(data);
+      } else {
+         throw new Error("Failed to load article");
+      }
+    } catch(err) {
+       setArticleError(err.message);
+    } finally {
+       setFetchingArticle(false);
+    }
+  };
+
+  const closeArticle = () => {
+    setActiveArticle(null);
+    setArticleContent(null);
+    setArticleError(null);
+  };
 
   const fetchNews = useCallback(async (selectedRegion) => {
     setLoading(true);
     setError(null);
     console.log(`🔄 [NewsPage] Fetching ${selectedRegion} news...`);
     try {
-      const response = await fetch(`http://127.0.0.1:8000/news?region=${selectedRegion}`);
+      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${apiUrl}/news?region=${selectedRegion}`);
       console.log(`📊 API Response Status: ${response.status}`);
       
       if (response.ok) {
@@ -72,6 +111,15 @@ const NewsPage = ({ theme }) => {
         <p className="news-subtitle">Stay informed about the environment & climate</p>
         
         <div className="news-tabs">
+          {localCity && (
+            <button 
+              className={`news-tab ${region === localCity ? "active" : ""}`} 
+              onClick={() => setRegion(localCity)}
+              title={`News for ${localCity}`}
+            >
+              Local ({localCity})
+            </button>
+          )}
           <button 
             className={`news-tab ${region === "india" ? "active" : ""}`} 
             onClick={() => setRegion("india")}
@@ -138,9 +186,10 @@ const NewsPage = ({ theme }) => {
                 <p className="news-description">{item.description}</p>
                 <a 
                   href={item.link} 
-                  target="_blank" 
+                  target={region === localCity ? "_self" : "_blank"} 
                   rel="noopener noreferrer" 
                   className="news-read-more"
+                  onClick={(e) => { if(region === localCity) openArticle(e, item.link); }}
                 >
                   Read Full Article
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -162,6 +211,35 @@ const NewsPage = ({ theme }) => {
             >
               Refresh
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Internal Article Reader Modal */}
+      {activeArticle && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '40px 20px', overflowY: 'auto' }}>
+          <div style={{ width: '100%', maxWidth: '800px', background: 'var(--card-bg)', border: '1px solid var(--card-border)', borderRadius: '16px', padding: '30px', position: 'relative', marginTop: '20px' }}>
+            <button 
+              onClick={closeArticle}
+              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'var(--text-1)', padding: '8px 16px', borderRadius: '100px', cursor: 'pointer', marginBottom: '20px', fontWeight: 'bold' }}>
+              ← Close Reader
+            </button>
+
+            {fetchingArticle ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-2)' }}>Extracting article content securely...</div>
+            ) : articleError ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#f87171' }}>
+                <p>Failed to extract text from the publisher.</p>
+                <a href={activeArticle} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', marginTop: '10px', display: 'inline-block' }}>Visit original page instead</a>
+              </div>
+            ) : articleContent ? (
+              <div>
+                <h1 style={{ fontSize: '28px', color: 'var(--text-1)', marginBottom: '24px', lineHeight: '1.3' }}>{articleContent.title}</h1>
+                <div style={{ color: 'var(--text-2)', fontSize: '17px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+                  {articleContent.content || "Empty content payload. Wait for publishers to update."}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
