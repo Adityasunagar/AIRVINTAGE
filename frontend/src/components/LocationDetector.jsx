@@ -14,10 +14,14 @@ function LocationDetector({ setCoordinates, setLocationName, onClose }) {
 
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
-                const lat = pos.coords.latitude.toFixed(5);
-                const lon = pos.coords.longitude.toFixed(5);
+                // Keep as numbers — toFixed returns strings which can offset the map marker
+                const lat = parseFloat(pos.coords.latitude.toFixed(7));
+                const lon = parseFloat(pos.coords.longitude.toFixed(7));
+                const accuracy = pos.coords.accuracy; // metres
                 
                 console.log(`📌 Your exact coordinates: ${lat}, ${lon}`);
+                console.log(`🎯 GPS accuracy: ±${Math.round(accuracy)}m ${accuracy < 20 ? '✅ High accuracy (GPS)' : accuracy < 100 ? '⚠️ Medium accuracy (WiFi)' : '❌ Low accuracy (IP-based)'}`);
+
                 
                 try {
                     // Use Nominatim (OpenStreetMap) - better for precise location names
@@ -106,14 +110,25 @@ function LocationDetector({ setCoordinates, setLocationName, onClose }) {
                     }
                 }
 
-                setCoordinates({ lat, lon });
+                setCoordinates({ lat, lon, accuracy });  // accuracy in metres
                 setLoading(false);
                 // Close the modal overlay after location is set
                 if (onClose) onClose();
             },
-            () => {
-                setError("Location access denied. Please allow it in your browser.");
+            (err) => {
+                if (err.code === 1) {
+                    setError("Location access denied. Please allow it in your browser settings.");
+                } else if (err.code === 2) {
+                    setError("Position unavailable. Try again in a moment.");
+                } else {
+                    setError("Location timed out. Move to an open area and retry.");
+                }
                 setLoading(false);
+            },
+            {
+                enableHighAccuracy: true,   // force GPS hardware, not Wi-Fi/IP
+                timeout: 15000,             // wait up to 15s for a fix
+                maximumAge: 0               // never use a cached position
             }
         );
     };

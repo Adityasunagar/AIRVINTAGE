@@ -70,7 +70,7 @@ function DashboardMapCard({ coordinates, aqiData, setCurrentPage }) {
                     style={{ height: '100%', width: '100%', zIndex: 1 }}
                 >
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" subdomains="abcd" />
-                    {aqiLayerEnabled && <TileLayer url="https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=YOUR_WAQI_TOKEN_HERE" opacity={0.6} zIndex={10} />}
+                    {aqiLayerEnabled && process.env.REACT_APP_WAQI_TOKEN && <TileLayer url={`https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${process.env.REACT_APP_WAQI_TOKEN}`} opacity={0.6} zIndex={10} />}
                     <Marker position={[lat, lon]} icon={pulseIcon} />
                 </MapContainer>
             </div>

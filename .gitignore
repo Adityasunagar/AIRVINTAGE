@@ -64,9 +64,17 @@ backend/app/model/checkpoints/
 *.csv
 *.ipynb
 
-# model folders
+# model folders (binaries / training artifacts)
 backend/app/model/models/
-backend/app/model/model train/
+backend/app/model/model_train/
+
+# ══════════════════════════════════════════════
+#  RUNTIME / GENERATED DATA
+# ══════════════════════════════════════════════
+
+# API response caches and sample outputs (generated at runtime)
+backend/scripts/weather_cache_sample.json
+backend/scripts/output_sample.json
 
 # ══════════════════════════════════════════════
 #  ENVIRONMENT & SECRETS
@@ -168,5 +176,3 @@ logs/
 *.tmp
 *.temp
 
-# API response cache (generated data)
-backend/app/weather.json
