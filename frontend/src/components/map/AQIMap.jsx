@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import L from "leaflet";
 import {
   MapContainer, TileLayer, Marker,
-  Popup, useMap, useMapEvents
+  Popup, Circle, useMap, useMapEvents
 } from "react-leaflet";
 import PopularLocationsAQI from "./PopularLocationsAQI";
 import TemperatureLayer from "./TemperatureLayer";
@@ -99,22 +99,51 @@ function RecenterControl({ lat, lon, onOffCenter, onBackCenter }) {
 
 /* ─────────────────────────────────────────────
    Map Click Handler for AQI Popup
+   Routes through AirVintage /predict (ML model)
+   so values match the dashboard — NOT raw Open-Meteo
 ───────────────────────────────────────────── */
 function ClickMapEvent({ setPopupData }) {
   useMapEvents({
     async click(e) {
       const { lat, lng } = e.latlng;
       setPopupData({ lat, lng, loading: true });
+
+      // Try AirVintage backend first (ML-corrected, same as dashboard)
       try {
-        const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=auto`);
+        const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+        const res = await fetch(`${apiUrl}/predict`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat, lon: lng }),
+        });
+        if (!res.ok) throw new Error("Backend error");
+        const data = await res.json();
+        setPopupData({
+          lat, lng, loading: false,
+          aqi:    data.aqi,
+          pm25:   data.pm2_5,
+          status: data.status,
+          source: "AirVintage ML",
+        });
+        return;
+      } catch {
+        // Fall back to Open-Meteo if backend unreachable
+      }
+
+      // Fallback: Open-Meteo raw sensor (labelled so user knows)
+      try {
+        const res = await fetch(
+          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5&timezone=auto`
+        );
         if (!res.ok) throw new Error("API Error");
         const data = await res.json();
         setPopupData({
           lat, lng, loading: false,
-          aqi: data.current.us_aqi,
-          pm25: data.current.pm2_5
+          aqi:    data.current.us_aqi,
+          pm25:   data.current.pm2_5,
+          source: "Open-Meteo (raw)",
         });
-      } catch (err) {
+      } catch {
         setPopupData({ lat, lng, loading: false, error: true });
       }
     }
@@ -212,8 +241,9 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
 
   if (!coordinates) return null;
 
-  const lat    = parseFloat(coordinates.lat);
-  const lon    = parseFloat(coordinates.lon);
+  const lat      = parseFloat(coordinates.lat);
+  const lon      = parseFloat(coordinates.lon);
+  const accuracy = coordinates.accuracy || null;   // metres, from GPS
   const aqi    = aqiData?.aqi || 0;
   const color  = getAqiColor(aqi);
   const city   = locationName?.city || "Your Location";
@@ -245,6 +275,21 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
           <span className="map-floating-title-text" style={{ color: cardText }}>
             Air Quality Map — <span style={{ color }}>{city}</span>
           </span>
+          {accuracy && (
+            <span style={{
+              fontSize: '10px',
+              color: accuracy < 20 ? '#22c55e' : accuracy < 100 ? '#eab308' : '#f87171',
+              background: accuracy < 20 ? 'rgba(34,197,94,0.1)' : accuracy < 100 ? 'rgba(234,179,8,0.1)' : 'rgba(248,113,113,0.1)',
+              border: `1px solid ${accuracy < 20 ? 'rgba(34,197,94,0.3)' : accuracy < 100 ? 'rgba(234,179,8,0.3)' : 'rgba(248,113,113,0.3)'}`,
+              borderRadius: '4px',
+              padding: '1px 5px',
+              fontWeight: 600,
+              letterSpacing: '0.02em',
+              flexShrink: 0,
+            }}>
+              ±{Math.round(accuracy)}m
+            </span>
+          )}
         </div>
         <div className="map-floating-aqi" style={{ color, borderLeft: `1px solid ${dividerColor}` }}>
           AQI {aqi} · <span style={{ color: mutedText, fontWeight: 500 }}>{getAqiLabel(aqi)}</span>
@@ -376,8 +421,15 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         {baseMap === 'Dark'      && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" subdomains="abcd" attribution="&copy; CartoDB" maxZoom={19} />}
         {baseMap === 'Light'     && <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" subdomains="abcd" attribution="&copy; CartoDB" maxZoom={19} />}
 
-        {/* Global AQI tile overlay (WAQI) */}
-        {waqiLayer && <TileLayer url="https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=_TOKEN_" attribution="&copy; WAQI" opacity={0.7} zIndex={10} />}
+        {/* Global AQI tile overlay (WAQI) - Requires REACT_APP_WAQI_TOKEN in .env */}
+        {waqiLayer && process.env.REACT_APP_WAQI_TOKEN && (
+          <TileLayer 
+            url={`https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${process.env.REACT_APP_WAQI_TOKEN}`} 
+            attribution="&copy; WAQI" 
+            opacity={0.7} 
+            zIndex={10} 
+          />
+        )}
 
         {/* Working overlays from Open-Meteo (free) */}
         <PopularLocationsAQI show={showCities} refreshKey={refreshKey} />
@@ -402,12 +454,26 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
               <div style={{ color: '#ff4444', padding: '8px' }}>Failed to load data</div>
             ) : (
               <div className="aqi-popup-inner" style={{ padding: '4px' }}>
-                <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Air Quality</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '11px', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Air Quality</div>
+                  {popupData.source && (
+                    <div style={{
+                      fontSize: '9px', fontWeight: 600,
+                      color: popupData.source === 'AirVintage ML' ? '#38bdf8' : '#94a3b8',
+                      background: popupData.source === 'AirVintage ML' ? 'rgba(56,189,248,0.12)' : 'rgba(148,163,184,0.1)',
+                      border: `1px solid ${popupData.source === 'AirVintage ML' ? 'rgba(56,189,248,0.3)' : 'rgba(148,163,184,0.2)'}`,
+                      borderRadius: '3px', padding: '1px 4px', letterSpacing: '0.03em',
+                    }}>
+                      {popupData.source}
+                    </div>
+                  )}
+                </div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: getAqiColor(popupData.aqi) }}>
                   {popupData.aqi}
                 </div>
                 <div style={{ fontSize: '13px', color: '#e8e8e8', marginBottom: '8px' }}>
-                  {getAqiLabel(popupData.aqi)}
+                  {popupData.status || getAqiLabel(popupData.aqi)}
+
                 </div>
                 <div style={{ fontSize: '12px', color: '#aaa' }}>
                   PM2.5: <span style={{ color: '#fff', fontWeight: 'bold' }}>{popupData.pm25} µg/m³</span>
@@ -415,6 +481,22 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
               </div>
             )}
           </Popup>
+        )}
+
+        {/* GPS Accuracy circle — like Google Maps' blue ring */}
+        {accuracy && (
+          <Circle
+            center={[lat, lon]}
+            radius={accuracy}
+            pathOptions={{
+              color: color,
+              fillColor: color,
+              fillOpacity: 0.06,
+              weight: 1.5,
+              opacity: 0.4,
+              dashArray: '4 4',
+            }}
+          />
         )}
 
         {/* Location marker */}

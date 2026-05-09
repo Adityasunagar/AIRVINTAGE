@@ -694,13 +694,67 @@ body {
   -webkit-backdrop-filter: blur(24px);
   overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24), 0 4px 16px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.15);
-  transition: background 0.3s ease-out, border-color 0.3s ease-out, box-shadow 0.3s ease-out, transform 0.3s ease-out;
-  will-change: box-shadow, transform;
+  transition:
+    background 0.3s ease-out,
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1);
+  will-change: box-shadow, transform, border-color;
+  position: relative;
+  cursor: default;
+}
+
+/* Shimmer sweep on hover */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.045) 50%,
+    transparent 80%
+  );
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 0.3s ease, transform 0s;
+  pointer-events: none;
+  border-radius: 20px;
+  z-index: 1;
+}
+
+.panel:hover::before {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: opacity 0.2s ease, transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .panel:hover {
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.28), 0 6px 20px rgba(0, 0, 0, 0.14);
-  transform: translateY(-2px);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.32),
+    0 8px 24px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(56, 189, 248, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  border-color: rgba(56, 189, 248, 0.3);
+  transform: translateY(-4px) scale(1.008);
+}
+
+.panel:active {
+  transform: translateY(-1px) scale(1.002);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    0 4px 12px rgba(0, 0, 0, 0.14),
+    0 0 0 1px rgba(56, 189, 248, 0.15);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+/* Light mode adjustments */
+.light .panel:hover {
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.07),
+    0 0 0 1px rgba(56, 189, 248, 0.28);
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 .panel-header {
@@ -738,16 +792,62 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  transition: background 0.3s ease-out, box-shadow 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: 
+    background 0.3s ease-out, 
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1), 
+    transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1);
+  will-change: box-shadow, transform, border-color;
   position: relative;
   border-radius: 12px;
   margin: 2px;
+  border: 1px solid transparent;
+  cursor: default;
+}
+
+/* Shimmer sweep on hover */
+.detail-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.045) 50%,
+    transparent 80%
+  );
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 0.3s ease, transform 0s;
+  pointer-events: none;
+  border-radius: 12px;
+  z-index: 1;
+}
+
+.detail-card:hover::after {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: opacity 0.2s ease, transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .detail-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-4px) scale(1.02);
   background: rgba(255, 255, 255, 0.03);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 
+    0 16px 32px rgba(0, 0, 0, 0.2), 
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(56, 189, 248, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.light .detail-card:hover {
+  background: #fff;
+  box-shadow: 
+    0 16px 32px rgba(0, 0, 0, 0.08), 
+    0 4px 12px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(56, 189, 248, 0.28);
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 .detail-card::before {
@@ -3058,12 +3158,12 @@ body {
   transition: opacity 0.3s ease;
 }
 
-/* Floating header pill — Google Maps search bar inspired (white, top-left) */
+/* Floating header pill — centered at top */
 .map-floating-header {
   position: absolute;
   top: 12px;
-  left: 12px;
-  right: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 800;
   display: flex;
   align-items: center;
@@ -3073,6 +3173,7 @@ body {
   border-radius: 24px;
   padding: 10px 18px;
   max-width: 520px;
+  white-space: nowrap;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.12);
   overflow: hidden;
 }
@@ -3230,10 +3331,11 @@ body {
   /* Header: tighten padding and hide city name on very small screens */
   .map-floating-header {
     top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
     padding: 8px 14px;
     gap: 8px;
     border-radius: 14px;
-    /* pill → rounded rect — still elegant */
   }
 
   .map-floating-title {
@@ -5701,31 +5803,682 @@ select:focus:not(:focus-visible) {
   }
 }
 
-/* ── Global Card Hover Effects ── */
-.panel {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease !important;
-}
+/* ════════════════════════════════════════════════════════════════
+   DASHBOARD CARD HOVER SYSTEM  — per-card specific effects
+   Matches the AQI Trend + Extended Forecast quality
+════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────
+   1.  .panel  — spring lift + shimmer sweep + glow ring
+───────────────────────────────────────────── */
 .panel:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2) !important;
-  border-color: var(--accent, #38bdf8) !important;
+  transform: translateY(-5px) scale(1.009);
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.34),
+    0 10px 28px rgba(0, 0, 0, 0.2),
+    0 0 0 1.5px rgba(56, 189, 248, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 0.22);
+  border-color: rgba(56, 189, 248, 0.35);
 }
 
 .light .panel:hover {
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.11),
+    0 10px 28px rgba(0, 0, 0, 0.08),
+    0 0 0 1.5px rgba(56, 189, 248, 0.32);
+  border-color: rgba(56, 189, 248, 0.38);
 }
 
-.detail-card, .weather-detail-widget {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, background-color 0.3s ease !important;
+/* ─────────────────────────────────────────────
+   2.  AQI TREND CARD  — SVG line glow + dots scale + area brighten
+       (Uses custom SVG, NOT Recharts — targets polyline / circle / path)
+───────────────────────────────────────────── */
+
+/* Animated coloured line brightens */
+.aqi-trend-card:hover svg polyline:last-of-type {
+  filter: drop-shadow(0 0 4px currentColor) brightness(1.3);
+  transition: filter 0.4s ease;
 }
 
-.detail-card:hover, .weather-detail-widget:hover {
-  transform: translateY(-3px);
-  background: var(--panel-bg-hover, rgba(255, 255, 255, 0.08)) !important;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+/* Ghost line (grey baseline) fades out */
+.aqi-trend-card:hover svg polyline:first-of-type {
+  opacity: 0.08;
+  transition: opacity 0.4s ease;
 }
 
-.light .detail-card:hover, .light .weather-detail-widget:hover {
-  background: rgba(255, 255, 255, 0.9) !important;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05) !important;
+/* Area gradient fill becomes more visible */
+.aqi-trend-card:hover svg path {
+  opacity: 1.4;
+  transition: opacity 0.4s ease;
 }
+
+/* All dots scale up slightly */
+.aqi-trend-card:hover svg circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.25);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Day labels brighten */
+.aqi-trend-card:hover .trend-day-label {
+  color: var(--text-2);
+  transition: color 0.35s ease;
+}
+.aqi-trend-card:hover .trend-day-label.today {
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
+/* Skeleton bars pulse cyan while loading */
+.aqi-trend-card:hover .trend-skel-bar {
+  background: rgba(56, 189, 248, 0.14);
+  transition: background 0.3s ease;
+}
+
+/* ─────────────────────────────────────────────
+   2b.  ALL PANELS — icon + value inner reactions
+        Gives every panel the same "inner life" feel
+        as the AQI trend card on hover
+───────────────────────────────────────────── */
+
+/* Panel icons scale + glow on parent hover */
+.panel:hover .panel-icon {
+  transform: scale(1.18) rotate(-4deg);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
+.panel .panel-icon {
+  transition: transform 0.3s ease, filter 0.3s ease;
+  display: inline-block;
+}
+
+/* Panel title brightens */
+.panel:hover .panel-title {
+  color: var(--text-2);
+  transition: color 0.35s ease;
+}
+.panel .panel-title {
+  transition: color 0.35s ease;
+}
+
+/* detail-card values scale on panel hover (when inside a panel grid) */
+.panel:hover .detail-card-value {
+  transform: scale(1.04);
+  transition: transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.panel .detail-card-value {
+  transition: transform 0.3s ease;
+  display: inline-block;
+}
+
+/* Progress bars glow on panel hover */
+.panel:hover .detail-card-bar {
+  filter: brightness(1.25) saturate(1.15);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+  transition: filter 0.35s ease, box-shadow 0.35s ease;
+}
+.panel .detail-card-bar {
+  transition: filter 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Condition badge lifts */
+.panel:hover .panel-condition-badge {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: var(--accent);
+  transition: all 0.35s ease;
+}
+.panel .panel-condition-badge {
+  transition: all 0.3s ease;
+}
+
+/* Compass needle pulses (Weather panel) */
+.panel:hover .compass-needle {
+  box-shadow:
+    0 0 12px rgba(56, 189, 248, 0.8),
+    0 0 24px rgba(56, 189, 248, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.4s ease;
+}
+.panel .compass-needle {
+  transition: box-shadow 0.3s ease;
+}
+
+/* Live chip pulses faster on hover */
+.panel:hover .live-dot-small,
+.panel:hover .nav-live-dot {
+  animation-duration: 0.8s;
+}
+
+/* ─────────────────────────────────────────────
+   3.  EXTENDED FORECAST CARD — day slots highlight with stagger
+───────────────────────────────────────────── */
+.panel:hover .forecast-day,
+.panel:hover .fc-day-col,
+.panel:hover .forecast-day-col,
+.panel:hover .trend-day {
+  transform: translateY(-2px);
+  transition: transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.panel:hover .forecast-day:nth-child(1), .panel:hover .fc-day-col:nth-child(1) { transition-delay: 0ms; }
+.panel:hover .forecast-day:nth-child(2), .panel:hover .fc-day-col:nth-child(2) { transition-delay: 30ms; }
+.panel:hover .forecast-day:nth-child(3), .panel:hover .fc-day-col:nth-child(3) { transition-delay: 60ms; }
+.panel:hover .forecast-day:nth-child(4), .panel:hover .fc-day-col:nth-child(4) { transition-delay: 90ms; }
+.panel:hover .forecast-day:nth-child(5), .panel:hover .fc-day-col:nth-child(5) { transition-delay: 120ms; }
+.panel:hover .forecast-day:nth-child(6), .panel:hover .fc-day-col:nth-child(6) { transition-delay: 150ms; }
+.panel:hover .forecast-day:nth-child(7), .panel:hover .fc-day-col:nth-child(7) { transition-delay: 180ms; }
+
+/* ─────────────────────────────────────────────
+   4.  SMART RECOMMENDATIONS CARD — score ring + pills lift
+───────────────────────────────────────────── */
+.panel:has(.smart-rec-card):hover .score-ring-svg,
+.smart-rec-card .score-ring-svg {
+  transition: filter 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.panel:has(.smart-rec-card):hover .score-ring-svg {
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45)) drop-shadow(0 4px 16px rgba(0,0,0,0.35));
+  transform: scale(1.06);
+}
+
+.panel:has(.smart-rec-card):hover .alert-pill {
+  transform: translateY(-2px);
+  transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1), box-shadow 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.panel:has(.smart-rec-card):hover .alert-pill:nth-child(1) { transition-delay: 0ms; }
+.panel:has(.smart-rec-card):hover .alert-pill:nth-child(2) { transition-delay: 40ms; }
+.panel:has(.smart-rec-card):hover .alert-pill:nth-child(3) { transition-delay: 80ms; }
+
+/* ─────────────────────────────────────────────
+   5.  DETAIL CARD (.detail-card) — shimmer already on ::after
+───────────────────────────────────────────── */
+.detail-card {
+  transition:
+    background 0.3s ease-out,
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.detail-card:hover {
+  transform: translateY(-5px) scale(1.025);
+  background: rgba(56, 189, 248, 0.04);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.24),
+    0 6px 14px rgba(0, 0, 0, 0.14),
+    0 0 0 1.5px rgba(56, 189, 248, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.detail-card:hover .detail-card-bar {
+  filter: brightness(1.3) drop-shadow(0 0 4px currentColor);
+  transition: filter 0.35s ease;
+}
+
+.light .detail-card:hover {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.09),
+    0 6px 14px rgba(0, 0, 0, 0.05),
+    0 0 0 1.5px rgba(56, 189, 248, 0.3);
+}
+
+/* ─────────────────────────────────────────────
+   6.  WEATHER DETAIL WIDGET — shimmer + compass glow
+───────────────────────────────────────────── */
+.weather-detail-widget {
+  position: relative;
+  overflow: hidden;
+  transition:
+    background 0.35s ease-out,
+    border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.weather-detail-widget::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.05) 50%, transparent 80%);
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity 0.3s ease, transform 0s;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+}
+.weather-detail-widget:hover::before {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: opacity 0.2s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.weather-detail-widget:hover {
+  transform: translateY(-5px) scale(1.02);
+  background: rgba(56, 189, 248, 0.05);
+  border-color: rgba(56, 189, 248, 0.3);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.22),
+    0 6px 14px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.weather-detail-widget:hover .compass-dial {
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, 0.25),
+    inset 0 0 24px rgba(56, 189, 248, 0.18),
+    0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.light .weather-detail-widget:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(56, 189, 248, 0.32);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.09),
+    0 6px 14px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(56, 189, 248, 0.25);
+}
+
+/* ─────────────────────────────────────────────
+   7.  AQI SCALE CARD (About page)
+───────────────────────────────────────────── */
+.aqi-scale-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 0.35s ease,
+    border 0.35s ease,
+    background 0.3s ease;
+  cursor: default;
+}
+
+.aqi-scale-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.045) 50%, transparent 80%);
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  transition: opacity 0.3s ease, transform 0s;
+}
+.aqi-scale-card:hover::before {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: opacity 0.2s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.aqi-scale-card:hover {
+  transform: translateY(-3px) scale(1.012);
+  box-shadow:
+    0 14px 36px rgba(0,0,0,0.25),
+    0 4px 12px rgba(0,0,0,0.14),
+    0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+/* ─────────────────────────────────────────────
+   8.  POLLUTANT CARD (About page) — icon bounce
+───────────────────────────────────────────── */
+.pollutant-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease,
+    background 0.3s ease;
+  cursor: default;
+}
+
+.pollutant-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.05) 50%, transparent 80%);
+  opacity: 0;
+  transform: translateX(-100%);
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  transition: opacity 0.3s ease, transform 0s;
+}
+.pollutant-card:hover::before {
+  opacity: 1;
+  transform: translateX(100%);
+  transition: opacity 0.2s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pollutant-card:hover {
+  transform: translateY(-4px) scale(1.014);
+  background: rgba(56, 189, 248, 0.04);
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow:
+    0 16px 40px rgba(0,0,0,0.26),
+    0 6px 14px rgba(0,0,0,0.14),
+    0 0 0 1px rgba(56, 189, 248, 0.2),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.pollutant-card .pollutant-icon {
+  transition: transform 0.3s ease;
+}
+.pollutant-card:hover .pollutant-icon {
+  transform: scale(1.18) translateY(-2px);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.light .pollutant-card:hover {
+  background: rgba(255,255,255,0.9);
+  box-shadow:
+    0 16px 40px rgba(0,0,0,0.08),
+    0 6px 14px rgba(0,0,0,0.05),
+    0 0 0 1px rgba(56, 189, 248, 0.25);
+}
+
+/* ─────────────────────────────────────────────
+   9.  NEWS CARDS (.news-card + .nl-card)
+───────────────────────────────────────────── */
+.news-card {
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.news-card:hover {
+  transform: translateY(-6px) scale(1.012);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.3),
+    0 8px 20px rgba(0, 0, 0, 0.16),
+    0 0 0 1.5px rgba(56, 189, 248, 0.28);
+  border-color: rgba(56, 189, 248, 0.32);
+}
+
+.nl-card {
+  transition:
+    transform 0.38s cubic-bezier(0.34, 1.3, 0.64, 1),
+    box-shadow 0.35s ease,
+    border-color 0.35s ease;
+}
+.nl-card:hover {
+  transform: translateY(-6px) scale(1.012);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.3),
+    0 8px 20px rgba(0, 0, 0, 0.16),
+    0 0 0 1.5px rgba(56, 189, 248, 0.28);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.light .news-card:hover,
+.light .nl-card:hover {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.1),
+    0 8px 20px rgba(0, 0, 0, 0.07),
+    0 0 0 1.5px rgba(56, 189, 248, 0.3);
+}
+
+/* ─────────────────────────────────────────────
+   10. ACTIVE PRESS — all cards sink on click
+───────────────────────────────────────────── */
+.panel:active,
+.detail-card:active,
+.weather-detail-widget:active,
+.aqi-scale-card:active,
+.pollutant-card:active,
+.news-card:active,
+.nl-card:active {
+  transform: translateY(-1px) scale(1.002) !important;
+  transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   WEATHER DETAIL WIDGET — INNER ELEMENT HOVER SYSTEM
+   Matches Temperature & Cloud Cover card interactivity
+   across ALL weather-detail-widget types
+════════════════════════════════════════════════════════════════ */
+
+/* ── Label brightens to accent on hover ── */
+.weather-detail-widget .wd-label {
+  transition: color 0.35s ease, letter-spacing 0.35s ease;
+}
+.weather-detail-widget:hover .wd-label {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+
+/* ── Entire SVG gets a soft ambient glow ── */
+.weather-detail-widget svg {
+  transition: filter 0.4s ease;
+}
+.weather-detail-widget:hover svg {
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.18));
+}
+
+/* ── SVG curved path lines glow (Temperature, Feels Like, Pressure) ── */
+.weather-detail-widget svg path {
+  transition: filter 0.4s ease;
+}
+.weather-detail-widget:hover svg path {
+  filter: brightness(1.35) saturate(1.2);
+}
+
+/* ── SVG dot/indicator circles bounce up on hover ── */
+.weather-detail-widget svg circle {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.35s ease;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.weather-detail-widget:hover svg circle {
+  transform: scale(1.4);
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+/* ── Precipitation arc brightens ── */
+.weather-detail-widget:hover svg path[stroke="#38bdf8"] {
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.7)) brightness(1.3);
+}
+
+/* ── UV Index arc brightens ── */
+.weather-detail-widget:hover svg path[stroke="url(#uvGradient)"] {
+  filter: brightness(1.25) saturate(1.15)
+          drop-shadow(0 0 8px rgba(239, 68, 68, 0.4));
+}
+
+/* ── Wind compass arrow glows ── */
+.weather-detail-widget:hover svg path[fill="#22c55e"],
+.weather-detail-widget:hover svg path[fill="#16a34a"] {
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7)) brightness(1.2);
+}
+
+/* ── Accent-coloured description text glows ── */
+.weather-detail-widget .wd-label,
+.weather-detail-widget [style*="color: var(--accent)"] {
+  transition: text-shadow 0.35s ease, color 0.35s ease;
+}
+.weather-detail-widget:hover [style*="color: var(--accent)"] {
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+/* ── Light mode adjustments ── */
+.light .weather-detail-widget:hover svg {
+  filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.2));
+}
+.light .weather-detail-widget:hover .wd-label {
+  color: var(--accent);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AQI DETAIL CARD — INNER ELEMENT HOVER SYSTEM
+   Same quality as weather widgets for pollutant metric cards
+════════════════════════════════════════════════════════════════ */
+
+/* Icon bounces */
+.detail-card .detail-card-icon {
+  display: inline-block;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.35s ease;
+}
+.detail-card:hover .detail-card-icon {
+  transform: scale(1.25) translateY(-3px);
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
+
+/* Value number scales up */
+.detail-card .detail-card-value {
+  display: inline-block;
+  transition: transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1),
+              color 0.35s ease;
+}
+.detail-card:hover .detail-card-value {
+  transform: scale(1.06);
+  color: var(--text-1);
+}
+
+/* Label brightens to accent */
+.detail-card .detail-card-label {
+  transition: color 0.35s ease, letter-spacing 0.35s ease;
+}
+.detail-card:hover .detail-card-label {
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+/* Description text fades in more */
+.detail-card .detail-card-desc {
+  transition: color 0.35s ease;
+}
+.detail-card:hover .detail-card-desc {
+  color: var(--text-2);
+}
+
+/* Progress bar glows with own colour + grows taller */
+.detail-card .detail-card-bar {
+  transition: filter 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+  transform-origin: bottom;
+}
+.detail-card:hover .detail-card-bar {
+  filter: brightness(1.4) saturate(1.2);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  transform: scaleY(1.5);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SMART RECOMMENDATIONS — SCORE RING & ALERT PILLS
+════════════════════════════════════════════════════════════════ */
+.smart-rec-card .score-ring-svg {
+  transition: filter 0.4s ease,
+              transform 0.4s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.smart-rec-card:hover .score-ring-svg {
+  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.5))
+          drop-shadow(0 4px 20px rgba(0, 0, 0, 0.3));
+  transform: scale(1.07);
+}
+
+.smart-rec-card .score-label {
+  transition: transform 0.35s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+.smart-rec-card:hover .score-label {
+  transform: scale(1.05);
+}
+
+.smart-rec-card .alert-pill {
+  transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+.smart-rec-card:hover .alert-pill {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.smart-rec-card:hover .alert-pill:nth-child(1) { transition-delay: 0ms; }
+.smart-rec-card:hover .alert-pill:nth-child(2) { transition-delay: 35ms; }
+.smart-rec-card:hover .alert-pill:nth-child(3) { transition-delay: 70ms; }
+.smart-rec-card:hover .alert-pill:nth-child(4) { transition-delay: 105ms; }
+
+/* ════════════════════════════════════════════════════════════════
+   PANEL-LEVEL PROPAGATION — FULL STRENGTH
+   Every inner-element effect fires on BOTH:
+     • .weather-detail-widget:hover  (hovering the widget itself)
+     • .panel:hover .weather-detail-widget  (hovering the parent panel)
+════════════════════════════════════════════════════════════════ */
+
+/* ── Label accent ── */
+.panel:hover .weather-detail-widget .wd-label {
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+
+/* ── Full SVG ambient glow ── */
+.panel:hover .weather-detail-widget svg {
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.18));
+}
+
+/* ── All SVG paths brighten ── */
+.panel:hover .weather-detail-widget svg path {
+  filter: brightness(1.35) saturate(1.2);
+}
+
+/* ── All SVG circles scale with bounce ── */
+.panel:hover .weather-detail-widget svg circle {
+  transform: scale(1.4);
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+/* ── Precipitation arc ── */
+.panel:hover .weather-detail-widget svg path[stroke="#38bdf8"] {
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.7)) brightness(1.3);
+}
+
+/* ── UV arc ── */
+.panel:hover .weather-detail-widget svg path[stroke="url(#uvGradient)"] {
+  filter: brightness(1.25) saturate(1.15)
+          drop-shadow(0 0 8px rgba(239, 68, 68, 0.4));
+}
+
+/* ── Wind compass arrow ── */
+.panel:hover .weather-detail-widget svg path[fill="#22c55e"],
+.panel:hover .weather-detail-widget svg path[fill="#16a34a"] {
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7)) brightness(1.2);
+}
+
+/* ── Accent description text glow ── */
+.panel:hover .weather-detail-widget [style*="color: var(--accent)"] {
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+}
+
+/* ── Light mode ── */
+.light .panel:hover .weather-detail-widget svg {
+  filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.2));
+}
+.light .panel:hover .weather-detail-widget .wd-label {
+  color: var(--accent);
+}
+
+/* ── Detail card inner elements from panel hover ── */
+.panel:hover .detail-card .detail-card-icon {
+  transform: scale(1.25) translateY(-3px);
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
+.panel:hover .detail-card .detail-card-label {
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+.panel:hover .detail-card .detail-card-value {
+  transform: scale(1.06);
+}
+.panel:hover .detail-card .detail-card-bar {
+  filter: brightness(1.4) saturate(1.2);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  transform: scaleY(1.5);
+}
+
