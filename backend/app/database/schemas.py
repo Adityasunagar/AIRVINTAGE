@@ -110,3 +110,30 @@ class HealthAlert(HealthAlertBase):
     prediction_id: int
 
     model_config = {"from_attributes": True}
+
+
+# =======================
+# Forecast Daily Schemas
+# =======================
+class ForecastDailyCreate(BaseModel):
+    forecast_date: str
+    temp_max: Optional[float] = None
+    temp_min: Optional[float] = None
+    condition: Optional[str] = None
+    weather_code: Optional[int] = None
+    precipitation: Optional[float] = None
+    uv_index: Optional[float] = None
+    wind_speed_max: Optional[float] = None
+    sunrise: Optional[str] = None
+    sunset: Optional[str] = None
+    moon_phase: Optional[str] = None
+    aqi: Optional[float] = None
+    pm2_5: Optional[float] = None
+    pm10: Optional[float] = None
+
+class ForecastDaily(ForecastDailyCreate):
+    forecast_id: int
+    location_id: int
+    fetched_at: datetime
+
+    model_config = {"from_attributes": True}

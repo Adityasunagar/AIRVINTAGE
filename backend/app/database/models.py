@@ -15,6 +15,7 @@ class Location(Base):
     # Relationships
     environmental_data = relationship("EnvironmentalData", back_populates="location")
     weather_data = relationship("Weather", back_populates="location")
+    forecast_daily = relationship("ForecastDaily", back_populates="location")
 
 
 class Weather(Base):
@@ -90,3 +91,29 @@ class HealthAlert(Base):
     
     # Relationships
     prediction = relationship("Prediction", back_populates="health_alerts")
+
+
+class ForecastDaily(Base):
+    __tablename__ = "forecast_daily"
+
+    forecast_id = Column(Integer, primary_key=True, index=True)
+    location_id = Column(Integer, ForeignKey("locations.location_id"))
+
+    forecast_date = Column(String, nullable=False)   # "YYYY-MM-DD"
+    temp_max = Column(Float)
+    temp_min = Column(Float)
+    condition = Column(String)
+    weather_code = Column(Integer)
+    precipitation = Column(Float)
+    uv_index = Column(Float)
+    wind_speed_max = Column(Float)
+    sunrise = Column(String)
+    sunset = Column(String)
+    moon_phase = Column(String)
+    aqi = Column(Float)
+    pm2_5 = Column(Float)
+    pm10 = Column(Float)
+    fetched_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    location = relationship("Location", back_populates="forecast_daily")
