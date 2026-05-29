@@ -50,3 +50,13 @@ def create_health_alert(db: Session, alert: schemas.HealthAlertCreate, predictio
     db.commit()
     db.refresh(db_alert)
     return db_alert
+
+def bulk_create_forecast_daily(db: Session, forecasts: list, location_id: int):
+    """Batch-insert daily forecast rows, skipping any that already exist for the same date."""
+    for f in forecasts:
+        db_forecast = models.ForecastDaily(
+            **f.model_dump(),
+            location_id=location_id
+        )
+        db.add(db_forecast)
+    db.commit()

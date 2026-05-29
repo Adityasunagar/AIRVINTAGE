@@ -184,7 +184,7 @@ function AppInner() {
                     <ForecastCard
                       lat={coordinates.lat}
                       lon={coordinates.lon}
-                      onClick={() => navigate("/forecast")}
+                      onClick={(idx) => navigate("/forecast", { state: { selectedDayIdx: idx } })}
                     />
                   )}
 
@@ -239,7 +239,7 @@ function AppInner() {
         <Route
           path="/forecast"
           element={
-            <div className="page-wrapper main-content">
+            <div className="page-wrapper main-content" style={{ maxWidth: '1400px' }}>
               <h2 className="section-title" style={{ margin: "20px 0", color: "var(--text-1)" }}>
                 Detailed Forecast
               </h2>

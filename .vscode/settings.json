@@ -1,0 +1,17 @@
+{
+  "python.defaultInterpreterPath": "C:\\Users\\ADITYA\\miniconda3\\python.exe",
+  "python.pythonPath": "C:\\Users\\ADITYA\\miniconda3\\python.exe",
+
+  "python.analysis.typeCheckingMode": "off",
+
+  "pyrefly.enabled": false,
+  "pyrefly.pythonInterpreter": "C:\\Users\\ADITYA\\miniconda3\\python.exe",
+
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  },
+
+  "python.analysis.extraPaths": [
+    "f:\\AirVintage Project\\AirVintage\\backend"
+  ]
+}

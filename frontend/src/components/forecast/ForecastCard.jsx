@@ -40,27 +40,29 @@ const ForecastCard = ({ lat, lon, onClick }) => {
     );
   }
 
-  // Extract upcoming 4 days starting from tomorrow or today (idx 1 to 4)
-  // idx 0 is Yesterday, idx 1 is Today
-  const upcoming = data.daily.slice(1, 5); 
+  // displayDays = Today + next 3 days (daily[0] = Today)
+  const displayDays = data.daily.slice(0, 4);
 
   return (
     <div 
       className="panel" 
-      onClick={onClick} 
       style={{ 
         padding: '24px', 
-        cursor: 'pointer', 
         display: 'flex', 
         flexDirection: 'column', 
         gap: '20px',
-        transition: 'transform 0.2s',
         minWidth: '280px'
       }}
-      onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-      onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div 
+        onClick={() => onClick && onClick(0)} 
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          cursor: 'pointer' 
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: '18px', color: 'var(--text-1)' }}>Extended Forecast</h3>
         <svg fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
              style={{ width: '20px', height: '20px', color: 'var(--accent)' }} viewBox="0 0 24 24">
@@ -70,22 +72,20 @@ const ForecastCard = ({ lat, lon, onClick }) => {
       </div>
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-        {upcoming.map((day, i) => {
+        {displayDays.map((day, i) => {
           const dateObj = new Date(day.date);
           let dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
           if (i === 0) dayLabel = 'Today';
           if (i === 1) dayLabel = 'Tomorrow';
 
           return (
-            <div key={day.date} style={{ 
+            <div key={day.date} className="forecast-day-card" onClick={() => onClick && onClick(i)} style={{ 
               display: 'flex', 
               flexDirection: 'column',
               alignItems: 'center', 
               justifyContent: 'center', 
               padding: '16px', 
-              background: 'rgba(128,128,128,0.05)',
               borderRadius: '12px',
-              border: '1px solid rgba(128,128,128,0.1)'
             }}>
               <div style={{ fontSize: '15px', color: 'var(--text-2)', fontWeight: '500', marginBottom: '8px' }}>{dayLabel}</div>
               <div style={{ marginBottom: '12px' }}>

@@ -1,16 +1,35 @@
 # main.py — Main API (dashboard endpoint)
-from typing import List, Dict, Any, Optional
+import datetime
 import time
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-import requests
-import xml.etree.ElementTree as ET
+import os
+import re
 import html
 import hashlib
-import time
-import re
-from sqlalchemy.orm import Session
 import logging
+import asyncio
+import xml.etree.ElementTree as ET
+from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+
+# Database modules
+from app.database.database import engine, Base, get_db
+from app.database import schemas, crud
+
+# ML predictor
+from app.model.inference_router import create_predictor
+
+# Canonical service helpers (fixes Issues 5 & 6 — no more duplicates in this file)
+from app.services.weather_service import (
+    get_weather_condition,
+    get_wind_direction,
+    get_moon_phase,
+    get_hourly_value_for_current_time,
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -19,14 +38,6 @@ logger = logging.getLogger(__name__)
 # Simple in-memory cache to prevent Open-Meteo 429 rate limits
 API_CACHE = {}
 CACHE_TTL = 900  # 15 minutes
-# Import our new database modules
-from app.database.database import engine, Base, get_db
-from app.database import schemas, crud
-from app.model.inference_router import create_predictor
-import os
-from datetime import datetime, timedelta
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 # Initialize ML Predictor
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -35,6 +46,9 @@ predictor = create_predictor(models_dir=MODELS_DIR)
 executor = ThreadPoolExecutor(max_workers=10)
 
 app = FastAPI()
+
+from app.aqi import router as aqi_router, get_aqi_status, get_health_alert_for_aqi
+app.include_router(aqi_router)
 
 # Automatically create all tables (if they don't exist)
 if engine:
@@ -67,156 +81,89 @@ def home():
     return {"message": "AirVintage Backend Running"}
 
 
-# ✅ Convert weather code → readable condition
-def get_weather_condition(code):
-    weather_map = {
-        0: "Clear",
-        1: "Partly Cloudy",
-        2: "Cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Rime Fog",
-        51: "Light Drizzle",
-        53: "Moderate Drizzle",
-        55: "Dense Drizzle",
-        56: "Freezing Drizzle",
-        57: "Freezing Drizzle",
-        61: "Light Rain",
-        63: "Moderate Rain",
-        65: "Heavy Rain",
-        71: "Light Snow",
-        73: "Moderate Snow",
-        75: "Heavy Snow",
-        77: "Snow Grains",
-        80: "Rain Showers",
-        81: "Rain Showers",
-        82: "Heavy Rain Showers",
-        85: "Snow Showers",
-        86: "Snow Showers",
-        95: "Thunderstorm",
-        96: "Thunderstorm + Hail",
-        99: "Heavy Hail"
-    }
-    return weather_map.get(code, "Unknown")
-
-import datetime
-def get_moon_phase(date: datetime.date) -> str:
-    # Known new moon date
-    new_moon = datetime.date(2000, 1, 6)
-    diff = date - new_moon
-    days = diff.days % 29.53058867
-    
-    if days < 1 or days >= 28.5: return "New Moon"
-    if days < 6.5: return "Waxing Crescent"
-    if days < 8.5: return "First Quarter"
-    if days < 14: return "Waxing Gibbous"
-    if days < 16: return "Full Moon"
-    if days < 21: return "Waning Gibbous"
-    if days < 23.5: return "Last Quarter"
-    return "Waning Crescent"
+# Helper functions are imported from app.services.weather_service (see top of file)
 
 
-# ✅ Convert wind degree → direction (16 points)
-def get_wind_direction(deg):
-    val = int((deg / 22.5) + 0.5)
-    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-    return dirs[val % 16]
-
-
-def get_hourly_value_for_current_time(hourly_times, hourly_values, current_time, default=None):
-    if not hourly_values:
-        return default
-
-    # current_weather.time can be like 2026-03-31T15:15; hourly times are typically 2026-03-31T15:00
-    hour_key = f"{current_time[:13]}:00" if current_time and len(current_time) >= 13 else None
-
-    if hour_key and hourly_times:
-        try:
-            idx = hourly_times.index(hour_key)
-            return hourly_values[idx]
-        except (ValueError, IndexError):
-            pass
-
-    return hourly_values[0] if hourly_values else default
-
-
-# ✅ MAIN WEATHER API
+# ✅ MAIN WEATHER API  (fix Issue 1 — modern URL, all fields stored)
 @app.get("/weather")
 def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
+    # Modern `current=` parameter captures all fields that were previously NULL
+    url = (
+        f"https://api.open-meteo.com/v1/forecast"
+        f"?latitude={lat}&longitude={lon}"
+        f"&current=temperature_2m,relative_humidity_2m,apparent_temperature,"
+        f"surface_pressure,cloud_cover,precipitation,wind_speed_10m,"
+        f"wind_direction_10m,wind_gusts_10m,is_day,weather_code"
+        f"&daily=temperature_2m_max,temperature_2m_min,uv_index_max"
+        f"&hourly=visibility"
+        f"&timezone=auto"
+    )
 
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&hourly=relativehumidity_2m,visibility&daily=temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto"
-
-    response = requests.get(url)
+    response = requests.get(url, timeout=15)
     data = response.json()
 
-    current = data["current_weather"]
-    hourly = data.get("hourly", {})
+    current      = data.get("current", {})
+    hourly       = data.get("hourly", {})
     hourly_times = hourly.get("time", [])
+    timestamp    = current.get("time")
 
-    humidity = get_hourly_value_for_current_time(
-        hourly_times,
-        hourly.get("relativehumidity_2m", []),
-        current.get("time"),
-        default=None,
-    )
     visibility_m = get_hourly_value_for_current_time(
-        hourly_times,
-        hourly.get("visibility", []),
-        current.get("time"),
-        default=10000,
+        hourly_times, hourly.get("visibility", []), timestamp, default=10000
     )
 
     weather = {
-        "temperature": current["temperature"],
-        "max_temp": data.get("daily", {}).get("temperature_2m_max", [None])[0],
-        "min_temp": data.get("daily", {}).get("temperature_2m_min", [None])[0],
-        "humidity": humidity,
-        "wind_speed": current["windspeed"],
-        "wind_direction": get_wind_direction(current["winddirection"]),
-        "visibility": visibility_m / 1000,  # meters → km
-        "condition": get_weather_condition(current["weathercode"]),
-        "is_day": current.get("is_day", 1),
-        "uv_index": data.get("daily", {}).get("uv_index_max", [None])[0]
+        "temperature":    current.get("temperature_2m"),
+        "feels_like":     current.get("apparent_temperature"),
+        "max_temp":       data.get("daily", {}).get("temperature_2m_max", [None])[0],
+        "min_temp":       data.get("daily", {}).get("temperature_2m_min", [None])[0],
+        "humidity":       current.get("relative_humidity_2m"),
+        "pressure":       current.get("surface_pressure"),
+        "cloud_cover":    current.get("cloud_cover"),
+        "precipitation":  current.get("precipitation"),
+        "wind_speed":     current.get("wind_speed_10m"),
+        "wind_gusts":     current.get("wind_gusts_10m"),
+        "wind_direction": get_wind_direction(current.get("wind_direction_10m", 0)),
+        "visibility":     (visibility_m or 10000) / 1000,  # metres → km
+        "condition":      get_weather_condition(current.get("weather_code", 0)),
+        "is_day":         current.get("is_day", 1),
+        "uv_index":       data.get("daily", {}).get("uv_index_max", [None])[0],
     }
 
-    # Save to PostgreSQL (if DB is active)
+    # ── Persist to PostgreSQL ────────────────────────────────────────────
     if db:
         try:
             logger.info(f"Saving weather data for lat={lat}, lon={lon}")
-            
-            # 1. Create Location
-            loc_schema = schemas.LocationCreate(latitude=lat, longitude=lon)
-            db_loc = crud.create_location(db, loc_schema)
-            logger.info(f"✓ Location created with ID: {db_loc.location_id}")
-            
-            # 2. Save to Weather table
+
+            db_loc = crud.create_location(db, schemas.LocationCreate(latitude=lat, longitude=lon))
+            logger.info(f"✓ Location ID: {db_loc.location_id}")
+
+            # All previously-NULL fields now populated
             weather_schema = schemas.WeatherCreate(
                 temperature=weather["temperature"],
-                feels_like=weather.get("feels_like"),
+                feels_like=weather["feels_like"],
                 condition=weather["condition"],
                 humidity=weather["humidity"],
-                pressure=None,
+                pressure=weather["pressure"],
                 wind_speed=weather["wind_speed"],
                 wind_direction=weather["wind_direction"],
-                cloud_cover=None,
+                cloud_cover=weather["cloud_cover"],
                 visibility=weather["visibility"],
-                precipitation=None,
+                precipitation=weather["precipitation"],
                 max_temp=weather["max_temp"],
                 min_temp=weather["min_temp"],
                 is_day=weather["is_day"],
-                uv_index=weather["uv_index"]
+                uv_index=weather["uv_index"],
             )
             db_weather = crud.create_weather(db, weather_schema, location_id=db_loc.location_id)
-            logger.info(f"✓ Weather data created with ID: {db_weather.weather_id}")
-            
-            # 3. Create Environmental Data
+            logger.info(f"✓ Weather ID: {db_weather.weather_id}")
+
             env_schema = schemas.EnvironmentalDataCreate(
                 temperature=weather["temperature"],
-                humidity=weather["humidity"]
+                humidity=weather["humidity"],
             )
             db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
-            logger.info(f"✓ Environmental data created with ID: {db_env.data_id}")
-            
+            logger.info(f"✓ Environmental data ID: {db_env.data_id}")
+
         except Exception as e:
             logger.error(f"Failed to save weather data to DB: {e}", exc_info=True)
     else:
@@ -225,115 +172,7 @@ def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
     return weather
 
 
-# ✅ Convert US AQI to readable status
-def get_aqi_status(aqi):
-    if aqi <= 50: return "Good"
-    if aqi <= 100: return "Moderate"
-    if aqi <= 150: return "Unhealthy for Sensitive Groups"
-    if aqi <= 200: return "Unhealthy"
-    if aqi <= 300: return "Very Unhealthy"
-    return "Hazardous"
 
-def get_health_alert_for_aqi(aqi):
-    """Generate health alert message and recommendation based on AQI"""
-    if aqi <= 50:
-        return {
-            "message": "Air quality is good",
-            "recommendation": "Enjoy outdoor activities"
-        }
-    elif aqi <= 100:
-        return {
-            "message": "Air quality is moderate",
-            "recommendation": "Unusually sensitive people should consider limiting prolonged outdoor activity"
-        }
-    elif aqi <= 150:
-        return {
-            "message": "Air quality is unhealthy for sensitive groups",
-            "recommendation": "Members of sensitive groups should limit prolonged outdoor activity"
-        }
-    elif aqi <= 200:
-        return {
-            "message": "Air quality is unhealthy",
-            "recommendation": "Some members of the general public may experience health effects; members of sensitive groups may experience more serious health effects"
-        }
-    elif aqi <= 300:
-        return {
-            "message": "Air quality is very unhealthy",
-            "recommendation": "Health alert: The risk of health effects is increased for everyone"
-        }
-    else:
-        return {
-            "message": "Air quality is hazardous",
-            "recommendation": "Health warning of emergency conditions: everyone is more likely to be affected"
-        }
-
-# ✅ MAIN AQI API (Using Open-Meteo Air Quality)
-@app.get("/aqi")
-def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
-    url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
-    
-    response = requests.get(url)
-    data = response.json()
-    
-    current = data.get("current", {})
-    us_aqi = current.get("us_aqi", 0)
-    
-    aqi_data = {
-        "aqi": us_aqi,
-        "status": get_aqi_status(us_aqi),
-        "pm2_5": current.get("pm2_5", 0),
-        "pm10": current.get("pm10", 0),
-        "carbon_monoxide": current.get("carbon_monoxide", 0),
-        "nitrogen_dioxide": current.get("nitrogen_dioxide", 0),
-        "sulphur_dioxide": current.get("sulphur_dioxide", 0),
-        "ozone": current.get("ozone", 0)
-    }
-
-    # Save to PostgreSQL (if DB is active)
-    if db:
-        try:
-            logger.info(f"Saving AQI data for lat={lat}, lon={lon}")
-            
-            # 1. Create Location
-            loc_schema = schemas.LocationCreate(latitude=lat, longitude=lon)
-            db_loc = crud.create_location(db, loc_schema)
-            logger.info(f"✓ Location created with ID: {db_loc.location_id}")
-            
-            # 2. Create Environmental Data
-            env_schema = schemas.EnvironmentalDataCreate(
-                pm2_5=aqi_data["pm2_5"],
-                pm10=aqi_data["pm10"],
-                no2=aqi_data["nitrogen_dioxide"],
-                co=aqi_data["carbon_monoxide"],
-                so2=aqi_data["sulphur_dioxide"],
-                o3=aqi_data["ozone"]
-            )
-            db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
-            logger.info(f"✓ Environmental data created with ID: {db_env.data_id}")
-            
-            # 3. Create Prediction entry to map the API status logic back to health alerts
-            pred_schema = schemas.PredictionCreate(
-                predicted_aqi=us_aqi,
-                aqi_category=aqi_data["status"]
-            )
-            db_pred = crud.create_prediction(db, pred_schema, data_id=db_env.data_id)
-            logger.info(f"✓ Prediction created with ID: {db_pred.prediction_id}, AQI: {us_aqi}")
-            
-            # 4. Create Health Alert based on AQI
-            health_alert_info = get_health_alert_for_aqi(us_aqi)
-            alert_schema = schemas.HealthAlertCreate(
-                alert_message=health_alert_info["message"],
-                recommendation=health_alert_info["recommendation"]
-            )
-            db_alert = crud.create_health_alert(db, alert_schema, prediction_id=db_pred.prediction_id)
-            logger.info(f"✓ Health alert created with ID: {db_alert.alert_id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to save AQI data to DB: {e}", exc_info=True)
-    else:
-        logger.warning("Database connection not available (db is None)")
-
-    return aqi_data
 
 # ─────────────────────────────────────────────────────────────────
 # NEWS CACHE  (in-memory, 30-minute TTL)
@@ -697,9 +536,10 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
                 )
                 db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
                 
-                # Create Weather Data
+                # Create Weather Data (fix Issue 2 — feels_like, max_temp, min_temp now stored)
                 weather_schema = schemas.WeatherCreate(
                     temperature=temp,
+                    feels_like=feels_like,
                     condition=get_weather_condition(weather_code),
                     humidity=humidity,
                     pressure=pressure,
@@ -709,7 +549,10 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
                     visibility=visibility_km,
                     precipitation=rain,
                     is_day=is_day,
-                    uv_index=uv_index
+                    uv_index=uv_index,
+                    # max_temp / min_temp come from daily[0]
+                    max_temp=daily.get("temperature_2m_max", [None])[0],
+                    min_temp=daily.get("temperature_2m_min", [None])[0],
                 )
                 crud.create_weather(db, weather_schema, location_id=db_loc.location_id)
                 
@@ -770,7 +613,7 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
 
 # ✅ ADVANCED 7-DAY FORECAST (PRODUCTION READY)
 @app.post("/forecast")
-async def get_forecast(request: schemas.PredictionRequest):
+async def get_forecast(request: schemas.PredictionRequest, db: Session = Depends(get_db)):
     """
     Unified forecast endpoint for Weather and Air Quality (7 days).
     Fetches hourly and daily data concurrently.
@@ -839,18 +682,68 @@ async def get_forecast(request: schemas.PredictionRequest):
                 "moon_phase": get_moon_phase(date_obj)
             })
 
+        # 3a. Persist daily forecast to DB (fix Issue 4)
+        if db and processed_daily:
+            try:
+                db_loc = crud.create_location(db, schemas.LocationCreate(latitude=lat, longitude=lon))
+                # Build AQI lookup per date from hourly AQ data
+                aq_daily_aqi = {}
+                aq_daily_pm25 = {}
+                aq_daily_pm10 = {}
+                for ts, aqi_val, pm25_val, pm10_val in zip(
+                    aq_data.get("hourly", {}).get("time", []),
+                    aq_data.get("hourly", {}).get("us_aqi", []),
+                    aq_data.get("hourly", {}).get("pm2_5", []),
+                    aq_data.get("hourly", {}).get("pm10", []),
+                ):
+                    date_key = ts[:10]
+                    aq_daily_aqi.setdefault(date_key, [])
+                    aq_daily_pm25.setdefault(date_key, [])
+                    aq_daily_pm10.setdefault(date_key, [])
+                    if aqi_val is not None: aq_daily_aqi[date_key].append(aqi_val)
+                    if pm25_val is not None: aq_daily_pm25[date_key].append(pm25_val)
+                    if pm10_val is not None: aq_daily_pm10[date_key].append(pm10_val)
+
+                forecast_schemas = []
+                for day in processed_daily:
+                    d = day["date"]
+                    avg = lambda lst: round(sum(lst) / len(lst), 2) if lst else None
+                    forecast_schemas.append(schemas.ForecastDailyCreate(
+                        forecast_date=d,
+                        temp_max=day["temp_max"],
+                        temp_min=day["temp_min"],
+                        condition=day["condition"],
+                        weather_code=day["weather_code"],
+                        precipitation=day["precip"],
+                        uv_index=day["uv"],
+                        wind_speed_max=day["wind"],
+                        sunrise=day["sunrise"],
+                        sunset=day["sunset"],
+                        moon_phase=day["moon_phase"],
+                        aqi=avg(aq_daily_aqi.get(d, [])),
+                        pm2_5=avg(aq_daily_pm25.get(d, [])),
+                        pm10=avg(aq_daily_pm10.get(d, [])),
+                    ))
+                crud.bulk_create_forecast_daily(db, forecast_schemas, location_id=db_loc.location_id)
+                logger.info(f"💾 Saved {len(forecast_schemas)} daily forecast rows for lat={lat}, lon={lon}")
+            except Exception as db_err:
+                logger.error(f"Failed to save forecast to DB: {db_err}", exc_info=True)
+
         # 3. Process Hourly Trends (for charts)
         w_hourly = weather_data.get("hourly", {})
         aq_hourly = aq_data.get("hourly", {})
         
         processed_hourly = []
-        times = aq_hourly.get("time", [])
-        for i in range(len(times)):
-            time_str = times[i]
-            
+        aq_times = aq_hourly.get("time", [])
+        w_times = w_hourly.get("time", [])
+        
+        # Merge and sort all unique times from both APIs
+        all_times = sorted(list(set(aq_times + w_times)))
+        
+        for time_str in all_times:
+            # Weather data match
             try:
-                # We use string matching for the timestamp to sync weather and AQ hourly
-                wx_idx = w_hourly.get("time", []).index(time_str)
+                wx_idx = w_times.index(time_str)
                 temp = w_hourly["temperature_2m"][wx_idx]
                 apparent_temp = w_hourly.get("apparent_temperature", [])[wx_idx] if "apparent_temperature" in w_hourly else temp
                 precip_prob = w_hourly["precipitation_probability"][wx_idx]
@@ -869,14 +762,22 @@ async def get_forecast(request: schemas.PredictionRequest):
                 wind = 0
                 cloud = 0
 
-            # Provide a fallback for missing AQI values so the chart line does not completely break
-            hr_aqi = aq_hourly.get("us_aqi", [])[i] if i < len(aq_hourly.get("us_aqi", [])) else None
+            # Air Quality data match
+            try:
+                aq_idx = aq_times.index(time_str)
+                hr_aqi = aq_hourly.get("us_aqi", [])[aq_idx]
+                pm2_5 = aq_hourly.get("pm2_5", [])[aq_idx]
+                pm10 = aq_hourly.get("pm10", [])[aq_idx]
+            except (ValueError, KeyError, IndexError):
+                hr_aqi = None
+                pm2_5 = 0
+                pm10 = 0
             
             processed_hourly.append({
                 "time": time_str,
                 "aqi": hr_aqi,
-                "pm2_5": aq_hourly.get("pm2_5", [])[i] if i < len(aq_hourly.get("pm2_5", [])) else 0,
-                "pm10": aq_hourly.get("pm10", [])[i] if i < len(aq_hourly.get("pm10", [])) else 0,
+                "pm2_5": pm2_5,
+                "pm10": pm10,
                 "temp": temp,
                 "apparent_temp": apparent_temp,
                 "weather_code": weather_code,

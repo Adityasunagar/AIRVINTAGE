@@ -30,10 +30,7 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 
-_HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(_HERE))
-
-from airvintage_ml import (
+from .airvintage_ml import (
     aqi_to_bucket, health_advisory,
     add_temporal_features, add_weather_features,
     encode_categorical, fillna_production,

@@ -1,21 +1,40 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import WeatherIcon from './WeatherIcon';
 import TrendChart from './TrendChart';
 
 const FORECAST_CACHE = {};
+// Cache version - increment to force cache bust after backend changes
+const CACHE_VERSION = 2;
 
 const ForecastSection = ({ lat, lon }) => {
+  const location = useLocation();
+  // daily[0] = Today (the backend weather API starts from today, no past_days)
+  const initialDayIdx = location.state?.selectedDayIdx ?? 0;
+
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [selectedDayIdx, setSelectedDayIdx] = useState(1);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(initialDayIdx);
   const [feelsLike, setFeelsLike] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Sync if navigation state changes (e.g. clicking a different day from the dashboard)
+  useEffect(() => {
+    if (location.state?.selectedDayIdx !== undefined) {
+      setSelectedDayIdx(location.state.selectedDayIdx);
+    }
+  }, [location.state]);
+
   useEffect(() => {
     if (!lat || !lon) return;
 
-    const cacheKey = `${lat},${lon}`;
+    const cacheKey = `${lat},${lon},v${CACHE_VERSION}`;
+    // Clear any old cache keys (different version)
+    Object.keys(FORECAST_CACHE).forEach(k => {
+      if (!k.endsWith(`v${CACHE_VERSION}`)) delete FORECAST_CACHE[k];
+    });
+
     if (FORECAST_CACHE[cacheKey]) {
       setData(FORECAST_CACHE[cacheKey]);
       setLoading(false);
@@ -38,7 +57,7 @@ const ForecastSection = ({ lat, lon }) => {
         const result = await response.json();
         if (!result || !result.hourly) throw new Error("Invalid data format");
         
-        FORECAST_CACHE[cacheKey] = result;
+        FORECAST_CACHE[`${lat},${lon},v${CACHE_VERSION}`] = result;
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -120,6 +139,7 @@ const ForecastSection = ({ lat, lon }) => {
       padding: '24px', 
       position: 'relative', 
       width: '100%',
+      transform: 'none',
     }}>
       
       {/* Top Header & Tabs (as seen in screenshot) */}
@@ -149,75 +169,72 @@ const ForecastSection = ({ lat, lon }) => {
         ))}
       </div>
 
-      {/* Carousel Grid */}
-      <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '16px', scrollbarWidth: 'none', width: '100%' }}>
+      {/* Day Grid — flex, fills full width, no scrolling */}
+      <div style={{ 
+        display: 'flex',
+        gap: '10px',
+        width: '100%'
+      }}>
         {data.daily.map((day, idx) => {
           const isActive = idx === selectedDayIdx;
           const dateObj = new Date(day.date);
           const dayNum = dateObj.getDate();
-          
+          const month = dateObj.toLocaleDateString('en-US', { month: 'short' });
+
           let dayLabel = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-          if (idx === 0) dayLabel = 'Yesterday';
-          if (idx === 1) dayLabel = 'Today';
+          if (idx === 0) dayLabel = 'Today';
+          if (idx === 1) dayLabel = 'Tomorrow';
 
           return (
-            <div 
+            <div
               key={day.date}
-              onClick={(e) => {
-                setSelectedDayIdx(idx);
-                e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              }}
+              onClick={() => setSelectedDayIdx(idx)}
               style={{
-                height: '110px',
-                padding: '12px',
+                flex: 1,
+                minWidth: 0,
+                padding: '16px 10px',
                 borderRadius: '16px',
                 cursor: 'pointer',
-                background: isActive ? 'rgba(128, 128, 128, 0.15)' : 'rgba(128, 128, 128, 0.05)',
-                border: `1px solid ${isActive ? 'var(--card-border)' : 'transparent'}`,
-                minWidth: isActive ? '220px' : '100px',
                 display: 'flex',
-                flexDirection: isActive ? 'row' : 'column',
+                flexDirection: 'column',
+                alignItems: 'center',
                 justifyContent: 'space-between',
-                alignItems: isActive ? 'center' : 'stretch',
-                transition: 'all 0.3s ease',
-                flexShrink: 0
+                gap: '6px',
+                background: isActive
+                  ? 'linear-gradient(135deg, rgba(56,189,248,0.18), rgba(99,102,241,0.12))'
+                  : 'rgba(128, 128, 128, 0.06)',
+                border: `1px solid ${isActive ? 'rgba(56,189,248,0.4)' : 'rgba(128,128,128,0.1)'}`,
+                boxShadow: isActive ? '0 4px 20px rgba(56,189,248,0.15)' : 'none',
+                transition: 'background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
               }}
             >
-              {isActive ? (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-1)' }}>{dayNum}</span>
-                      <span style={{ fontSize: '14px', color: 'var(--text-2)' }}>{dayLabel}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', marginTop: '12px' }}>
-                      <div style={{ background: 'rgba(56, 189, 248, 0.15)', borderRadius: '50%', padding: '8px', zIndex: 2, border: '1px solid var(--card-border)' }}>
-                        <WeatherIcon code={day.weather_code} size={32} />
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--text-1)' }}>{Math.round(day.temp_max)}°</span>
-                    <span style={{ fontSize: '16px', color: 'var(--text-3)' }}>{Math.round(day.temp_min)}°</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-2)' }}>{dayNum}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{dayLabel}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                    <WeatherIcon code={day.weather_code} size={28} />
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-1)' }}>{Math.round(day.temp_max)}°</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-3)' }}>{Math.round(day.temp_min)}°</div>
-                    </div>
-                  </div>
-                </>
-              )}
+              <span style={{
+                fontSize: '11px', fontWeight: '600',
+                color: isActive ? 'var(--accent)' : 'var(--text-3)',
+                textTransform: 'uppercase', letterSpacing: '0.5px'
+              }}>{dayLabel}</span>
+
+              <span style={{
+                fontSize: '22px', fontWeight: 'bold',
+                color: isActive ? 'var(--text-1)' : 'var(--text-2)', lineHeight: 1
+              }}>{dayNum}</span>
+
+              <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{month}</span>
+
+              <div style={{
+                background: isActive ? 'rgba(56,189,248,0.12)' : 'rgba(128,128,128,0.08)',
+                borderRadius: '50%', padding: '7px',
+                border: isActive ? '1px solid rgba(56,189,248,0.25)' : '1px solid transparent'
+              }}>
+                <WeatherIcon code={day.weather_code} size={24} />
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--text-1)' }}>{Math.round(day.temp_max)}°</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{Math.round(day.temp_min)}°</span>
+              </div>
             </div>
-          )
+          );
         })}
       </div>
 
