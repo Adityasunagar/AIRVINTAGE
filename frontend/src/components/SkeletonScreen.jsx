@@ -1,4 +1,5 @@
 import React from "react";
+import { Loader2 } from "lucide-react";
 
 export default function SkeletonScreen() {
 	return (
@@ -54,8 +55,9 @@ export default function SkeletonScreen() {
 					</div>
 				</main>
 
-				<div style={{ textAlign: "center", padding: "20px", color: "var(--text-3)", fontSize: "0.9rem", paddingBottom: "40px" }}>
-					💨 Loading real-time air quality data...
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "20px", color: "var(--text-3)", fontSize: "0.9rem", paddingBottom: "40px" }}>
+					<Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+					Loading real-time air quality data...
 				</div>
 			</div>
 	);

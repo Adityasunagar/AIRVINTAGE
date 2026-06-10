@@ -913,7 +913,7 @@ body {
   height: 4px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  margin-top: 8px;
+  margin-top: auto;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -1769,6 +1769,99 @@ body {
   .loc-city {
     font-size: 1.9rem;
   }
+
+  /* Responsive Navbar (Switching to Mobile Menu at 1024px to prevent layout breaks) */
+  .nav-links,
+  .nav-live-chip,
+  .nav-btn-text {
+    display: none;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .mobile-nav-menu {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    background: var(--nav-bg);
+    border-bottom: 1px solid var(--nav-border);
+    padding: 12px 16px;
+    gap: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: fadeInDown 0.3s ease-out;
+    z-index: 99;
+  }
+
+  .mobile-nav-link {
+    background: none;
+    border: none;
+    color: var(--text-2);
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 10px 12px;
+    border-radius: 8px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+
+  .mobile-nav-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-1);
+  }
+
+  .mobile-nav-link.active {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .light .mobile-nav-link:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .light .mobile-nav-link.active {
+    background: rgba(56, 189, 248, 0.15);
+  }
+
+  .navbar {
+    padding: 0 12px;
+    height: 56px;
+  }
+
+  .nav-logo {
+    gap: 6px;
+  }
+
+  .nav-logo-text {
+    font-size: 0.88rem;
+  }
+
+  .nav-right {
+    gap: 8px;
+  }
+
+  .nav-location {
+    display: none;
+  }
+
+  .nav-detect-btn {
+    padding: 6px;
+    border: none;
+    background: transparent;
+  }
+
+  .nav-icon-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1871,99 +1964,6 @@ body {
    SMALL DEVICES (max-width: 640px)
 ═══════════════════════════════════════════════ */
 @media (max-width: 640px) {
-  .nav-links,
-  .nav-live-chip,
-  .nav-btn-text {
-    display: none;
-  }
-
-  .mobile-menu-toggle {
-    display: flex;
-  }
-
-  .mobile-nav-menu {
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 56px;
-    left: 0;
-    right: 0;
-    background: var(--nav-bg);
-    border-bottom: 1px solid var(--nav-border);
-    padding: 12px 16px;
-    gap: 6px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-    animation: fadeInDown 0.3s ease-out;
-    z-index: 99;
-  }
-
-  .mobile-nav-link {
-    background: none;
-    border: none;
-    color: var(--text-2);
-    font-size: 0.95rem;
-    font-weight: 500;
-    padding: 10px 12px;
-    border-radius: 8px;
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.2s;
-  }
-
-  .mobile-nav-link:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-1);
-  }
-
-  .mobile-nav-link.active {
-    background: rgba(56, 189, 248, 0.15);
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .light .mobile-nav-link:hover {
-    background: rgba(0, 0, 0, 0.06);
-  }
-
-  .light .mobile-nav-link.active {
-    background: rgba(56, 189, 248, 0.15);
-  }
-
-  .navbar {
-    padding: 0 12px;
-    height: 56px;
-  }
-
-  .nav-logo {
-    gap: 6px;
-  }
-
-  .nav-logo-text {
-    font-size: 0.88rem;
-  }
-
-  .nav-right {
-    gap: 8px;
-  }
-
-  .nav-location {
-    display: none;
-  }
-
-  .nav-detect-btn {
-    padding: 6px;
-    border: none;
-    background: transparent;
-  }
-
-
-  .nav-icon-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 1.1rem;
-  }
-
   .page-wrapper {
     padding: 68px 12px 28px;
   }
@@ -5697,6 +5697,33 @@ select:focus:not(:focus-visible) {
 }
 
 /* ── Light Mode Specific Contrast Fixes ── */
+.light .map-legend-pill {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+}
+.light .map-legend-pill:hover {
+  background: rgba(255, 255, 255, 1) !important;
+}
+.light .map-legend-card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+}
+.light .map-legend-card span {
+  color: #0f172a !important;
+}
+.light .map-legend-card button {
+  color: #64748b !important;
+}
+.light .legend-current div {
+  color: #475569 !important;
+}
+.light .map-legend-card .legend-scale div {
+  color: #1e293b !important;
+}
+
 .light .score-label,
 .light .score-gauge-wrap text,
 .light .trend-today-badge,
@@ -5723,6 +5750,10 @@ select:focus:not(:focus-visible) {
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   color: transparent !important;
+}
+
+.light .nav-logo:hover .av-logo-svg {
+  filter: drop-shadow(0 0 10px rgba(2, 132, 199, 0.45)) drop-shadow(0 0 20px rgba(5, 150, 105, 0.25)) !important;
 }
 
 .light .nav-badge {
@@ -6594,6 +6625,8 @@ body { -webkit-font-smoothing: antialiased; }
     gap: 10px !important;
     padding-bottom: 8px;
     margin-bottom: 12px;
+    -webkit-mask-image: linear-gradient(to right, #000 85%, transparent 100%);
+    mask-image: linear-gradient(to right, #000 85%, transparent 100%);
   }
   .forecast-day-grid::-webkit-scrollbar { display: none; }
   .forecast-day-grid > * { min-width: 95px !important; flex-shrink: 0; scroll-snap-align: start; }
@@ -6634,11 +6667,589 @@ button:focus-visible, a:focus-visible {
   border-radius: 6px;
 }
 
+/* ══ AQI Card Row Layout (Pollutants & Advisory Side-by-Side) ══ */
+.aqi-card-row {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+.aqi-card-row > .panel {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .aqi-card-row {
+    flex-direction: column;
+  }
+}
+
 /* ══ Print ══ */
 @media print {
   .navbar, .sky-background, .stars, .clouds { display: none !important; }
   .page-wrapper { padding: 20px !important; }
   .panel { box-shadow: none !important; border: 1px solid #ddd !important; }
+}
+/* ═══════════════════════════════════════════════════════════════════
+   AIRVINTAGE — RESPONSIVE & LIGHT MODE OVERHAUL v2
+   Fixes:
+   1. Light mode: invisible buttons, icon colors, input contrast
+   2. Cohort tabs: wrap on mobile instead of overflowing
+   3. LocationDetector: search row stacks on <400px
+   4. Panel hover lift disabled on touch devices
+   5. Nav on small phones
+   6. Weather widget grid responsive
+   7. Smart rec card mobile layout
+   8. News/forecast mobile polish
+═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────
+   LIGHT MODE — FULL VISIBILITY OVERHAUL
+   ───────────────────────────────────────────────── */
+
+/* Nav icon buttons — dark icons on light bg */
+.light .nav-icon-btn {
+  background: rgba(0, 0, 0, 0.07) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+.light .nav-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.12) !important;
+  color: #000 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+/* Nav detect / change location button */
+.light .nav-detect-btn {
+  background: rgba(0, 0, 0, 0.07) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  color: #0f172a !important;
+}
+.light .nav-detect-btn:hover {
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Mobile menu links on light */
+.light .mobile-nav-menu {
+  background: #ffffff !important;
+  border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
+}
+.light .mobile-nav-link {
+  color: #0f172a !important;
+}
+.light .mobile-nav-link:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+.light .mobile-nav-link.active {
+  background: rgba(2, 132, 199, 0.12) !important;
+  color: #0284c7 !important;
+}
+
+/* Live chip */
+.light .nav-live-chip {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  color: #0f172a !important;
+}
+
+/* Cohort tab buttons — light mode */
+.light .cohort-tab-btn {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #374151 !important;
+}
+.light .cohort-tab-btn.active {
+  background: rgba(0, 0, 0, 0.07) !important;
+  color: #0f172a !important;
+}
+
+/* Generic inline-style buttons inside panels — light mode overrides */
+.light .panel button[style*="transparent"] {
+  color: var(--text-1) !important;
+}
+
+/* Health advisory inline boxes — light mode */
+.light .health-advisory-section .panel,
+.light .health-advisory-section [style*="rgba(255,255,255,0.06)"],
+.light .health-advisory-section [style*="rgba(255,255,255,0.03)"] {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Status summary box in AQICard — light mode */
+.light [style*="rgba(255,255,255,0.06)"],
+.light [style*="rgba(255,255,255,0.08)"] {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Dominant pollutant badge */
+.light span[style*="rgba(96, 165, 250, 0.1)"] {
+  background: rgba(2, 132, 199, 0.1) !important;
+  border-color: rgba(2, 132, 199, 0.25) !important;
+}
+
+/* LocationDetector modal — light mode */
+.light .location-modal-card {
+  background: rgba(255,255,255,0.95) !important;
+  border-color: rgba(0,0,0,0.1) !important;
+  color: #0f172a !important;
+}
+.light .modal-title { color: #0f172a !important; }
+.light .modal-subtitle { color: rgba(15, 23, 42, 0.65) !important; }
+
+/* Search input — light mode */
+.light .location-modal-card input {
+  background: rgba(0,0,0,0.04) !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  color: #0f172a !important;
+}
+.light .location-modal-card input::placeholder {
+  color: rgba(15,23,42,0.45) !important;
+}
+
+/* Search OR divider */
+.light .location-modal-card [style*="rgba(255,255,255,0.08)"] {
+  background: rgba(0,0,0,0.08) !important;
+}
+.light .location-modal-card [style*="rgba(255,255,255,0.2)"] {
+  color: rgba(0,0,0,0.3) !important;
+}
+
+/* Detect My Location button — light mode */
+.light .locate-btn {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+.light .locate-btn:hover {
+  background: #1e293b !important;
+}
+
+/* Close (X) button in modal */
+.light .location-modal-card button[title="Close"] {
+  background: rgba(0,0,0,0.06) !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: rgba(15,23,42,0.55) !important;
+}
+
+/* Map layer card */
+.light .custom-layer-card {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+}
+.light .custom-layer-card .layer-card-title,
+.light .custom-layer-card h4 {
+  color: #0f172a !important;
+}
+.light .custom-layer-card button {
+  color: #64748b !important;
+}
+.light .custom-layer-card .layer-section-title,
+.light .custom-layer-card div {
+  color: #475569 !important;
+}
+.light .layer-option span {
+  color: #1e293b !important;
+}
+.light .layer-option:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+.light .custom-layer-card hr {
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+.light .custom-layer-card div[style*="borderBottom"] {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+
+/* About page AQI scale cards — already coloured, just ensure text is visible */
+.light .aqi-scale-card .scale-desc {
+  color: rgba(15, 23, 42, 0.7) !important;
+}
+
+/* Pollutant ring status badge in light mode */
+.light .pollutant-status-badge {
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12) !important;
+}
+
+/* Smart recommendations card light mode */
+.light .smart-rec-card {
+  background: rgba(255,255,255,0.82) !important;
+}
+.light .model-badge-strip {
+  border-top-color: rgba(0,0,0,0.06) !important;
+  background: rgba(0,0,0,0.02) !important;
+}
+.light .alert-pill {
+  border-color: currentColor !important;
+}
+
+/* Weather detail widget — light */
+.light .weather-detail-widget {
+  background: rgba(0,0,0,0.03) !important;
+  border-color: rgba(0,0,0,0.06) !important;
+}
+
+/* AQI trend chart — light mode */
+.light .aqi-trend-card { background: rgba(255,255,255,0.82) !important; }
+.light .trend-today-badge { opacity: 0.9; }
+
+/* Forecast section tabs — light mode */
+.light .forecast-section-panel button[style*="rgba(128, 128, 128"] {
+  background: rgba(0,0,0,0.06) !important;
+  color: #374151 !important;
+}
+
+/* News list card — light mode */
+.light .nl-card { background: rgba(255,255,255,0.85) !important; border-color: rgba(0,0,0,0.07) !important; }
+.light .nl-card-title { color: #0f172a !important; }
+.light .nl-card-desc { color: rgba(15,23,42,0.65) !important; }
+.light .nl-tab { background: rgba(0,0,0,0.05) !important; border-color: rgba(0,0,0,0.1) !important; color: #374151 !important; }
+.light .nl-tab.active { background: var(--accent) !important; color: #fff !important; }
+.light .nl-source { color: rgba(15,23,42,0.5) !important; }
+.light .nl-page { color: #0f172a !important; }
+.light .nl-title { color: #0f172a !important; }
+.light .nl-subtitle { color: rgba(15,23,42,0.6) !important; }
+.light .nl-read-more { color: var(--accent) !important; }
+
+/* News detail */
+.light .nd-page { color: #0f172a !important; }
+.light .nd-title { color: #0f172a !important; }
+.light .nd-content p { color: rgba(15,23,42,0.8) !important; }
+.light .nd-back-btn { background: rgba(0,0,0,0.06) !important; border-color: rgba(0,0,0,0.1) !important; color: #0f172a !important; }
+.light .nd-attribution { color: rgba(15,23,42,0.55) !important; }
+
+/* About page */
+.light .about-title { color: #0f172a !important; }
+.light .about-section-text { color: rgba(15,23,42,0.75) !important; }
+.light .source-desc { color: rgba(15,23,42,0.65) !important; }
+.light .pollutant-desc { color: rgba(15,23,42,0.65) !important; }
+.light .pollutant-card { background: rgba(255,255,255,0.7) !important; border-color: rgba(0,0,0,0.06) !important; }
+.light .source-card { background: rgba(255,255,255,0.7) !important; border-color: rgba(0,0,0,0.06) !important; }
+
+/* ─────────────────────────────────────────────────
+   COHORT TABS — WRAP ON MOBILE
+   ───────────────────────────────────────────────── */
+
+/* The cohort tab row wraps instead of overflowing horizontally */
+.cohort-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+@media (max-width: 480px) {
+  .cohort-tabs-row {
+    gap: 4px;
+  }
+  /* Each cohort button shrinks on very small screens */
+  .cohort-tabs-row button {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   LOCATION DETECTOR — SEARCH ROW STACKS ON SMALL
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 400px) {
+  .search-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .search-row button {
+    width: 100%;
+    border-radius: 12px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   PANEL HOVER — DISABLE LIFT/SCALE ON TOUCH
+   Prevents overflow on mobile caused by translateY + scale
+   ───────────────────────────────────────────────── */
+
+@media (hover: none) and (pointer: coarse) {
+  .panel:hover {
+    transform: none !important;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24), 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+  }
+  .panel:active {
+    transform: scale(0.99) !important;
+  }
+  .nav-link:hover,
+  .nav-icon-btn:hover {
+    transform: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   NAVBAR — EXTRA SMALL SCREENS (< 360px)
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 360px) {
+  .navbar {
+    padding: 0 6px !important;
+    gap: 4px !important;
+    height: 52px !important;
+  }
+  .nav-logo-text {
+    font-size: 0.75rem !important;
+  }
+  .nav-badge {
+    display: none !important;
+  }
+  .nav-icon-btn {
+    width: 30px !important;
+    height: 30px !important;
+  }
+  .nav-right {
+    gap: 4px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   WEATHER DETAIL WIDGETS — RESPONSIVE GRID
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .weather-detail-widget {
+    padding: 14px !important;
+    min-height: 140px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* stack to 2 columns at 480px */
+  [style*="grid-template-columns: repeat(auto-fill, minmax(260px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 360px) {
+  /* 1 column on the smallest phones */
+  [style*="grid-template-columns: repeat(auto-fill, minmax(260px"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   SMART RECOMMENDATIONS CARD — MOBILE LAYOUT
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .smart-rec-body {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+  }
+  .score-gauge-wrap {
+    align-self: center !important;
+  }
+  .smart-rec-right {
+    width: 100% !important;
+  }
+  .alert-pills-row {
+    flex-wrap: wrap !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   AQI TREND CHART — MOBILE
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .trend-today-badge {
+    font-size: 0.7rem !important;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+  .trend-day-label {
+    font-size: 0.65rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   DASHBOARD INSIGHTS ROW — STACK EARLIER
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .dashboard-insights-row {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   POPUP CONTENT WRAPPER — ensure content wrapper
+   padding is right for small screens
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .page-wrapper {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .premium-main {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   APP-CONTENT — ensure no horizontal scroll
+   ───────────────────────────────────────────────── */
+
+.app-content-wrapper {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* ─────────────────────────────────────────────────
+   LIGHT MODE — HERO & BACKGROUND
+   Make hero numbers and labels legible on light bg
+   ───────────────────────────────────────────────── */
+
+.light .hero-aqi-status-badge {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-1) !important;
+}
+
+.light .hero-weather-summary {
+  background: rgba(255,255,255,0.55) !important;
+  color: var(--text-2) !important;
+}
+
+.light .hero-aqi-label {
+  color: rgba(15, 23, 42, 0.55) !important;
+}
+
+/* Ensure AQI hero value remains clearly visible in light mode */
+.light .aqi-good .hero-aqi-value    { color: #16a34a !important; }
+.light .aqi-moderate .hero-aqi-value { color: #ca8a04 !important; }
+.light .aqi-sensitive .hero-aqi-value { color: #d97706 !important; }
+.light .aqi-unhealthy .hero-aqi-value { color: #dc2626 !important; }
+.light .aqi-very-unhealthy .hero-aqi-value { color: #7c3aed !important; }
+.light .aqi-hazardous .hero-aqi-value { color: #9f1239 !important; }
+
+/* ─────────────────────────────────────────────────
+   FORECAST PAGE — MOBILE FIXES
+   ───────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .forecast-section-panel {
+    padding: 16px !important;
+  }
+  /* Forecast day grid on very small screens: enable horizontal scroll */
+  .forecast-section-panel [style*="display: 'flex'"][style*="gap: '10px'"] {
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   NO-SCROLLBAR UTILITY
+   ───────────────────────────────────────────────── */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────
+   FORECAST DAY CARDS STYLING (Legibility & Interaction)
+   ───────────────────────────────────────────────── */
+.forecast-section-day-card {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.forecast-section-day-card:hover {
+  transform: translateY(-4px) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+.forecast-section-day-card.active:hover {
+  background: linear-gradient(135deg, rgba(56,189,248,0.24), rgba(99,102,241,0.18)) !important;
+  border-color: rgba(56,189,248,0.6) !important;
+}
+
+/* Light Mode Overrides for forecast section cards */
+.light .forecast-section-day-card {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
+}
+.light .forecast-section-day-card:hover {
+  background: rgba(0, 0, 0, 0.07) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+}
+.light .forecast-section-day-card.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(99, 102, 241, 0.08)) !important;
+  border-color: rgba(2, 132, 199, 0.35) !important;
+}
+.light .forecast-section-day-card.active:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.18), rgba(99, 102, 241, 0.12)) !important;
+  border-color: rgba(2, 132, 199, 0.5) !important;
+}
+.light .forecast-section-day-card span {
+  color: #334155 !important;
+}
+.light .forecast-section-day-card span[style*="color: var(--accent)"],
+.light .forecast-section-day-card.active span {
+  color: #0284c7 !important;
+}
+.light .forecast-section-day-card.active span[style*="font-size: 22px"] {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+
+/* Dashboard Extended Forecast Cards */
+.forecast-day-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.forecast-day-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25) !important;
+}
+.light .forecast-day-card {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+.light .forecast-day-card:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06) !important;
+}
+.light .forecast-day-card div {
+  color: #334155 !important;
+}
+.light .forecast-day-card div:first-child {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+.light .forecast-day-card span {
+  color: #334155 !important;
+}
+.light .forecast-day-card span:first-child {
+  color: #0f172a !important;
+  font-weight: 700 !important;
 }
 
 

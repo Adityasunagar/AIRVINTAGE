@@ -1,7 +1,10 @@
 import React from "react";
-import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+// Set to true and add REACT_APP_WAQI_TOKEN to .env to enable AQI tile overlay
+const aqiLayerEnabled = false;
 
 function makePulseIcon(color) {
   return L.divIcon({
@@ -26,6 +29,16 @@ function getAqiColor(aqi) {
   if (aqi <= 200) return "#ef4444";
   if (aqi <= 300) return "#a855f7";
   return "#dc2626";
+}
+
+function RecenterMiniMap({ lat, lon }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (lat != null && lon != null) {
+      map.setView([lat, lon], 12);
+    }
+  }, [lat, lon, map]);
+  return null;
 }
 
 function DashboardMapCard({ coordinates, aqiData, setCurrentPage }) {
@@ -69,6 +82,7 @@ function DashboardMapCard({ coordinates, aqiData, setCurrentPage }) {
                     attributionControl={false}
                     style={{ height: '100%', width: '100%', zIndex: 1 }}
                 >
+                    <RecenterMiniMap lat={lat} lon={lon} />
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" subdomains="abcd" />
                     {aqiLayerEnabled && process.env.REACT_APP_WAQI_TOKEN && <TileLayer url={`https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${process.env.REACT_APP_WAQI_TOKEN}`} opacity={0.6} zIndex={10} />}
                     <Marker position={[lat, lon]} icon={pulseIcon} />
@@ -77,7 +91,5 @@ function DashboardMapCard({ coordinates, aqiData, setCurrentPage }) {
         </div>
     );
 }
-
-const aqiLayerEnabled = false; // Add your WAQI token above if you want mini-map AQI overlay
 
 export default DashboardMapCard;

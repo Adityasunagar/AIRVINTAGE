@@ -92,6 +92,23 @@ def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
     temperature = wx_current.get("temperature_2m")
     humidity    = wx_current.get("relative_humidity_2m")
 
+    # Generate advanced health recommendations
+    pollutants_dict = {
+        "pm2_5": current.get("pm2_5", 0),
+        "pm10": current.get("pm10", 0),
+        "no2": current.get("nitrogen_dioxide", 0),
+        "co": current.get("carbon_monoxide", 0),
+        "so2": current.get("sulphur_dioxide", 0),
+        "o3": current.get("ozone", 0),
+    }
+    weather_dict = {
+        "temperature": temperature,
+        "humidity": humidity,
+    }
+
+    from app.services.health_service import generate_advanced_health_recommendations, build_health_alert_schema
+    adv_recs = generate_advanced_health_recommendations(us_aqi, pollutants_dict, weather_dict)
+
     aqi_data = {
         "aqi":              us_aqi,
         "status":           get_aqi_status(us_aqi),
@@ -101,6 +118,7 @@ def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
         "nitrogen_dioxide": current.get("nitrogen_dioxide", 0),
         "sulphur_dioxide":  current.get("sulphur_dioxide", 0),
         "ozone":            current.get("ozone", 0),
+        "health_recommendations": adv_recs,
     }
 
     # ── Persist to PostgreSQL ──────────────────────────────────────────────
@@ -135,13 +153,20 @@ def get_aqi(lat: float, lon: float, db: Session = Depends(get_db)):
             logger.info(f"✓ Prediction ID: {db_pred.prediction_id}, AQI: {us_aqi}")
 
             # 4. Health Alert
-            alert_info = get_health_alert_for_aqi(us_aqi)
+            alert_fields = build_health_alert_schema(
+                us_aqi,
+                pm2_5=aqi_data["pm2_5"],
+                pm10=aqi_data["pm10"],
+                no2=aqi_data["nitrogen_dioxide"],
+                co=aqi_data["carbon_monoxide"],
+                so2=aqi_data["sulphur_dioxide"],
+                o3=aqi_data["ozone"],
+                temperature=temperature,
+                humidity=humidity
+            )
             db_alert = crud.create_health_alert(
                 db,
-                schemas.HealthAlertCreate(
-                    alert_message=alert_info["message"],
-                    recommendation=alert_info["recommendation"],
-                ),
+                schemas.HealthAlertCreate(**alert_fields),
                 prediction_id=db_pred.prediction_id,
             )
             logger.info(f"✓ Health alert ID: {db_alert.alert_id}")

@@ -7,12 +7,13 @@ import html
 import hashlib
 import logging
 import asyncio
+import socket
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -50,6 +51,15 @@ app = FastAPI()
 from app.aqi import router as aqi_router, get_aqi_status, get_health_alert_for_aqi
 app.include_router(aqi_router)
 
+@app.on_event("startup")
+def startup_event():
+    logger.info("Preloading ML models at startup...")
+    try:
+        predictor.load_all_models()
+        logger.info("ML models preloading completed successfully!")
+    except Exception as e:
+        logger.error(f"Error during ML model preloading: {e}", exc_info=True)
+
 # Automatically create all tables (if they don't exist)
 if engine:
     Base.metadata.create_all(bind=engine)
@@ -64,6 +74,21 @@ origins = [
     "http://127.0.0.1:6669",
 ]
 
+# Dynamically add local network IP for mobile dev CORS support
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    local_ip = s.getsockname()[0]
+    s.close()
+    if local_ip:
+        origins.extend([
+            f"http://{local_ip}:3000",
+            f"http://{local_ip}:3001",
+            f"http://{local_ip}:6669",
+        ])
+except Exception:
+    pass
+
 # Allow adding production domains via env var
 if os.getenv("FRONTEND_URL"):
     origins.extend(os.getenv("FRONTEND_URL").split(","))
@@ -75,6 +100,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# IP-based rate limiter — protects against external abuse while allowing normal
+# app usage (map city markers, dashboard refresh, forecast, etc.).
+# 120 req/min is generous enough for local dev (10 cities × Strict Mode = ~20
+# on load) while still blocking runaway loops.
+RATE_LIMIT_STORE = {}
+RATE_LIMIT_WINDOW = 60   # seconds
+RATE_LIMIT_MAX_REQUESTS = 120  # requests per minute per IP
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path in ["/predict", "/forecast"]:
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+
+        # Prune timestamps outside the current window
+        timestamps = RATE_LIMIT_STORE.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < RATE_LIMIT_WINDOW]
+
+        if len(timestamps) >= RATE_LIMIT_MAX_REQUESTS:
+            from fastapi.responses import JSONResponse
+            logger.warning(
+                f"Rate limit hit for {client_ip}: "
+                f"{len(timestamps)} requests in the last {RATE_LIMIT_WINDOW}s"
+            )
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Too Many Requests",
+                    "details": f"Limit is {RATE_LIMIT_MAX_REQUESTS} requests per minute. Please wait."
+                }
+            )
+
+        timestamps.append(now)
+        RATE_LIMIT_STORE[client_ip] = timestamps
+
+    return await call_next(request)
 
 @app.get("/")
 def home():
@@ -157,12 +219,8 @@ def get_weather(lat: float, lon: float, db: Session = Depends(get_db)):
             db_weather = crud.create_weather(db, weather_schema, location_id=db_loc.location_id)
             logger.info(f"✓ Weather ID: {db_weather.weather_id}")
 
-            env_schema = schemas.EnvironmentalDataCreate(
-                temperature=weather["temperature"],
-                humidity=weather["humidity"],
-            )
-            db_env = crud.create_environmental_data(db, env_schema, location_id=db_loc.location_id)
-            logger.info(f"✓ Environmental data ID: {db_env.data_id}")
+            # EnvironmentalData is not created here because /weather is just for weather stats,
+            # whereas environmental_data is reserved for predicting AQI (with all pollutant metrics).
 
         except Exception as e:
             logger.error(f"Failed to save weather data to DB: {e}", exc_info=True)
@@ -336,7 +394,7 @@ async def get_news(region: str = "world", category: str = ""):
         logger.info(f"✅ Serving news from cache for: {cache_key}")
         return {"region": region, "news": cached["articles"], "count": len(cached["articles"]), "cached": True}
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     
     # 1. Fetch from Premium APIs concurrently
     guardian_task = loop.run_in_executor(executor, fetch_guardian_news, region)
@@ -403,7 +461,7 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
     weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=visibility,precipitation_probability,dewpoint_2m&daily=uv_index_max,sunrise,sunset&timezone=auto"
     aq_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto"
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     
     try:
         # 2. Fetch data concurrently
@@ -491,7 +549,7 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
             try:
                 dt_obj = datetime.datetime.fromisoformat(timestamp_str)
                 iso_ts = dt_obj.strftime("%Y-%m-%d %H:%M:%S")
-            except:
+            except Exception:
                 iso_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
             iso_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -563,15 +621,40 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
                 )
                 db_pred = crud.create_prediction(db, pred_schema, data_id=db_env.data_id)
                 
-                # Create Health Alert
-                alert_schema = schemas.HealthAlertCreate(
-                    alert_message=result["health_advisory"]["message"],
-                    recommendation=result["health_advisory"]["recommendation"]
+                # Create Health Alert using advanced cohort-aware logic
+                from app.services.health_service import generate_advanced_health_recommendations, build_health_alert_schema
+                alert_fields = build_health_alert_schema(
+                    int(result["predicted_aqi"]),
+                    pm2_5=pm2_5,
+                    pm10=pm10,
+                    no2=no2,
+                    co=co,
+                    so2=so2,
+                    o3=o3,
+                    temperature=temp,
+                    humidity=humidity
                 )
+                alert_schema = schemas.HealthAlertCreate(**alert_fields)
                 crud.create_health_alert(db, alert_schema, prediction_id=db_pred.prediction_id)
-                logger.info(f"💾 Logged ML prediction to DB for {result.get('nearest_city', 'Unknown')}")
+                logger.info(f"💾 Logged ML prediction & health alerts to DB for {result.get('nearest_city', 'Unknown')}")
             except Exception as db_err:
                 logger.error(f"Failed to log prediction to DB: {db_err}")
+
+        # Generate advanced recommendations for API response
+        pollutants_dict = {
+            "pm2_5": pm2_5,
+            "pm10": pm10,
+            "no2": no2,
+            "co": co,
+            "so2": so2,
+            "o3": o3,
+        }
+        weather_dict = {
+            "temperature": temp,
+            "humidity": humidity,
+        }
+        from app.services.health_service import generate_advanced_health_recommendations
+        adv_recs = generate_advanced_health_recommendations(int(result["predicted_aqi"]), pollutants_dict, weather_dict)
 
         # 7. Add extra info for frontend compatibility
         result.update({
@@ -583,6 +666,7 @@ async def predict_aqi(request: schemas.PredictionRequest, db: Session = Depends(
             "nitrogen_dioxide": no2,
             "sulphur_dioxide": so2,
             "ozone": o3,
+            "health_recommendations": adv_recs,
             "weather_data": {
                 "temperature": temp,
                 "feels_like": feels_like,
@@ -624,7 +708,7 @@ async def get_forecast(request: schemas.PredictionRequest, db: Session = Depends
     weather_forecast_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_sum,uv_index_max,windspeed_10m_max,sunrise,sunset&hourly=temperature_2m,precipitation_probability,relativehumidity_2m,surface_pressure,visibility,weather_code,is_day,apparent_temperature,windspeed_10m,cloudcover&timezone=auto"
     aq_forecast_url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=7&forecast_days=7&timezone=auto"
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     
     try:
         def fetch_json(url):

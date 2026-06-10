@@ -106,13 +106,25 @@ def tc5_health_recommendations():
     payload = {"lat": LAT, "lon": LON}
     r = requests.post(f"{BASE_URL}/predict", json=payload, timeout=40)
     data = r.json()
+    
+    # 1. Verify Legacy Health Advisory for database compatibility
     advisory = data.get("health_advisory", {})
     assert advisory, "health_advisory field missing"
     msg  = advisory.get("message", "")
     rec  = advisory.get("recommendation", "")
     assert msg,  "Health advisory message is empty"
     assert rec,  "Health recommendation is empty"
-    return True, f"Message: '{msg}' | Recommendation: '{rec[:80]}...'"
+
+    # 2. Verify Advanced Health Recommendations
+    adv_recs = data.get("health_recommendations", {})
+    assert adv_recs, "health_recommendations field missing"
+    assert "severity" in adv_recs, "Advanced severity missing"
+    assert "dominant_pollutant" in adv_recs, "Dominant pollutant missing"
+    assert "general_recommendations" in adv_recs, "General recommendations missing"
+    assert "cohort_recommendations" in adv_recs, "Cohort recommendations missing"
+    assert "actionable_tips" in adv_recs, "Actionable tips missing"
+    
+    return True, f"Severity: {adv_recs['severity']} | Dominant: {adv_recs['dominant_pollutant']} | Recommendations count: {len(adv_recs['cohort_recommendations'])}"
 
 # ──────────────────────────────────────────────
 # TC-6  Interactive AQI Map (Forecast / Heatmap data)

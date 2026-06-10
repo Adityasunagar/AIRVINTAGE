@@ -98,6 +98,15 @@ class AirVintagePredictor:
             )
         return path
 
+    def _load_lgb_booster(self, filename: str):
+        import lightgbm as lgb
+        path = self._require_file(self.models_dir / filename)
+        with open(path, "rb") as f:
+            content = f.read()
+        normalized_content = content.replace(b"\r\n", b"\n")
+        return lgb.Booster(model_str=normalized_content.decode('utf-8'))
+
+
     def _load_features(self, name: str) -> list:
         path = self._require_file(self.models_dir / name)
         with open(path) as f:
@@ -242,12 +251,11 @@ class AirVintagePredictor:
 
     def _load_02(self):
         if "station_day" not in self._cache:
-            import lightgbm as lgb
             with open(self._require_file(self.models_dir / "02_station_day_ensemble_weights.json")) as f:
                 w = json.load(f)
             self._cache["station_day"] = {
                 "rf"      : joblib.load(self._require_file(self.models_dir / "02_station_day_rf.pkl")),
-                "lgb"     : lgb.Booster(model_file=str(self._require_file(self.models_dir / "02_station_day_lgb.txt"))),
+                "lgb"     : self._load_lgb_booster("02_station_day_lgb.txt"),
                 "le"      : joblib.load(self._require_file(self.models_dir / "02_station_day_le_station.pkl")),
                 "stats"   : pd.read_csv(self._require_file(self.models_dir / "02_station_day_stn_stats.csv")),
                 "features": self._load_features("02_station_day_features.json"),
@@ -281,9 +289,8 @@ class AirVintagePredictor:
 
     def _load_03(self):
         if "city_hour" not in self._cache:
-            import lightgbm as lgb
             self._cache["city_hour"] = {
-                "model"  : lgb.Booster(model_file=str(self._require_file(self.models_dir / "03_city_hour_lgb.txt"))),
+                "model"  : self._load_lgb_booster("03_city_hour_lgb.txt"),
                 "le"     : joblib.load(self._require_file(self.models_dir / "03_city_hour_le_city.pkl")),
                 "stats"  : pd.read_csv(self._require_file(self.models_dir / "03_city_hour_city_stats.csv")),
                 "features": self._load_features("03_city_hour_features.json"),
@@ -495,6 +502,18 @@ class AirVintagePredictor:
     def get_registry(self) -> dict:
         """Return model registry with metrics for all trained models."""
         return self._registry
+
+    def load_all_models(self):
+        """Preload all models into cache to prevent request-time latency/timeouts."""
+        if self.verbose:
+            print("Preloading all ML models into memory...")
+        self._load_01()
+        self._load_02()
+        self._load_03()
+        self._load_04()
+        self._load_05()
+        if self.verbose:
+            print("All models successfully preloaded.")
 
 
 # ─── FastAPI Integration Helper ───────────────────────────────────────────────

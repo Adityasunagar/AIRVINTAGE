@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import L from "leaflet";
 import {
   MapContainer, TileLayer, Marker,
@@ -19,6 +19,19 @@ function getAqiColor(aqi) {
   if (aqi <= 200) return "#ef4444";
   if (aqi <= 300) return "#a855f7";
   return "#dc2626";
+}
+function getAqiTextColor(aqi, isLight) {
+  if (isLight) {
+    if (!aqi) return "#0284c7";
+    if (aqi <= 50)  return "#16a34a";
+    if (aqi <= 100) return "#ca8a04";
+    if (aqi <= 150) return "#d97706";
+    if (aqi <= 200) return "#dc2626";
+    if (aqi <= 300) return "#7c3aed";
+    return "#9f1239";
+  } else {
+    return getAqiColor(aqi);
+  }
 }
 function getAqiLabel(aqi) {
   if (!aqi)       return "No Data";
@@ -69,7 +82,7 @@ function FlyToOnMount({ lat, lon }) {
 /* ─────────────────────────────────────────────
    Recenter / world-copy-aware fly-home
 ───────────────────────────────────────────── */
-function RecenterControl({ lat, lon, onOffCenter, onBackCenter }) {
+function RecenterControl({ lat, lon, onOffCenter, onBackCenter, flyHomeRef }) {
   const map = useMap();
 
   useMapEvents({
@@ -81,18 +94,14 @@ function RecenterControl({ lat, lon, onOffCenter, onBackCenter }) {
     },
   });
 
-  const flyHome = useCallback(() => {
-    const wraps = Math.round((map.getCenter().lng - lon) / 360);
-    map.flyTo([lat, lon + wraps * 360], 14, {
-      duration: 1.4,
-      easeLinearity: 0.2,
-    });
-  }, [map, lat, lon]);
-
+  // Keep the ref always pointing at the latest flyHome so the button
+  // outside MapContainer never calls a stale closure.
   React.useEffect(() => {
-    window.__mapFlyHome = flyHome;
-    return () => { window.__mapFlyHome = null; };
-  }, [flyHome]);
+    flyHomeRef.current = () => {
+      const wraps = Math.round((map.getCenter().lng - lon) / 360);
+      map.flyTo([lat, lon + wraps * 360], 14, { duration: 1.4, easeLinearity: 0.2 });
+    };
+  });
 
   return null;
 }
@@ -110,7 +119,7 @@ function ClickMapEvent({ setPopupData }) {
 
       // Try AirVintage backend first (ML-corrected, same as dashboard)
       try {
-        const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+        const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
         const res = await fetch(`${apiUrl}/predict`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -167,11 +176,18 @@ function LegendCollapseHandler({ legendOpen, setLegendOpen }) {
    Custom Map Controls (Refresh, Zoom)
 ───────────────────────────────────────────── */
 function RefreshControl({ onRefresh }) {
+  // Attach L.DomEvent.disableClickPropagation so clicks on this
+  // control never bubble through to Leaflet's map-click handler.
+  const containerRef = React.useCallback((node) => {
+    if (node) L.DomEvent.disableClickPropagation(node);
+  }, []);
+
   return (
-    <div className="gm-refresh-control">
+    <div className="gm-refresh-control" ref={containerRef}>
       <button
         className="gm-zoom-btn"
         onClick={(e) => {
+          e.stopPropagation();
           e.preventDefault();
           onRefresh();
         }}
@@ -190,11 +206,18 @@ function RefreshControl({ onRefresh }) {
 
 function ZoomControls() {
   const map = useMap();
+
+  // Attach L.DomEvent.disableClickPropagation so clicks on zoom
+  // buttons never bubble through to Leaflet's map-click handler.
+  const containerRef = React.useCallback((node) => {
+    if (node) L.DomEvent.disableClickPropagation(node);
+  }, []);
+
   return (
-    <div className="gm-zoom-controls">
+    <div className="gm-zoom-controls" ref={containerRef}>
       <button
         className="gm-zoom-btn"
-        onClick={() => map.zoomIn()}
+        onClick={(e) => { e.stopPropagation(); map.zoomIn(); }}
         title="Zoom in"
         aria-label="Zoom in"
       >
@@ -206,7 +229,7 @@ function ZoomControls() {
       <div className="gm-zoom-divider"/>
       <button
         className="gm-zoom-btn"
-        onClick={() => map.zoomOut()}
+        onClick={(e) => { e.stopPropagation(); map.zoomOut(); }}
         title="Zoom out"
         aria-label="Zoom out"
       >
@@ -222,7 +245,7 @@ function ZoomControls() {
 /* ─────────────────────────────────────────────
    Main component
 ───────────────────────────────────────────── */
-function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
+function AQIMap({ coordinates, aqiData, locationName, theme = 'dark', setCoordinates, setLocationName }) {
   const [offCenter, setOffCenter] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -232,12 +255,115 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
   const [baseMap, setBaseMap] = useState('Dark');
   const [waqiLayer, setWaqiLayer] = useState(false);
 
+  // Stable ref so RecenterControl's flyHome never goes stale
+  const flyHomeRef = React.useRef(null);
+
   // Sync baseMap with global theme toggle when user clicks the nav sun/moon
   useEffect(() => {
     setBaseMap(theme === 'dark' ? 'Dark' : 'Map');
   }, [theme]);
   const [tempLayer, setTempLayer] = useState(false);
   const [showLayerMenu, setShowLayerMenu] = useState(false);
+
+  const markerRef = React.useRef(null);
+  const eventHandlers = React.useMemo(
+    () => ({
+      dragend() {
+        const marker = markerRef.current;
+        if (marker != null) {
+          const newLatLng = marker.getLatLng();
+          if (setCoordinates) {
+            setCoordinates({ lat: newLatLng.lat, lon: newLatLng.lng });
+          }
+          if (setLocationName) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLatLng.lat}&lon=${newLatLng.lng}&zoom=18&addressdetails=1`, {
+              headers: {'Accept-Language': 'en'}
+            })
+              .then(res => res.json())
+              .then(data => {
+                const cityVal = data.name || data.address?.village || data.address?.town || data.address?.city || 'Selected Point';
+                setLocationName({
+                  city: cityVal,
+                  state: data.address?.state || '',
+                  country: data.address?.country || ''
+                });
+              })
+              .catch(() => {
+                setLocationName({ city: 'Selected Location', state: '', country: '' });
+              });
+          }
+        }
+      },
+    }),
+    [setCoordinates, setLocationName]
+  );
+
+  const handleRefreshLocation = React.useCallback(() => {
+    // Force reload overlays
+    setRefreshKey(k => k + 1);
+
+    const fetchIPLocation = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (!res.ok) throw new Error("IP geolocation failed");
+        const data = await res.json();
+        const lat = parseFloat(data.latitude);
+        const lon = parseFloat(data.longitude);
+        const cityVal = data.city || 'Local Region';
+        const state = data.region || '';
+        const country = data.country_name || '';
+        if (setLocationName) setLocationName({ city: cityVal, state, country });
+        if (setCoordinates) setCoordinates({ lat, lon, accuracy: null });
+      } catch (err) {
+        console.error("IP Geolocation failed in map refresh:", err);
+      }
+    };
+
+    if (!navigator.geolocation) { fetchIPLocation(); return; }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        // Use raw GPS — no city-center snapping so flyTo goes to actual location
+        const lat = parseFloat(pos.coords.latitude.toFixed(7));
+        const lon = parseFloat(pos.coords.longitude.toFixed(7));
+        const accuracy = pos.coords.accuracy;
+
+        let cityVal = '';
+        let state = '';
+        let country = '';
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            cityVal = data.name || '';
+            if (!cityVal && data.address) {
+              const a = data.address;
+              for (const k of ['city','town','village','municipality','suburb','hamlet','county','state']) {
+                if (a[k]) { cityVal = a[k]; break; }
+              }
+            }
+            state = data.address?.state || '';
+            country = data.address?.country || '';
+          }
+        } catch (err) {
+          console.error("Geocoding failed on map refresh:", err);
+        }
+
+        if (!cityVal) cityVal = 'My Location';
+        if (setLocationName) setLocationName({ city: cityVal, state, country });
+        if (setCoordinates) setCoordinates({ lat, lon, accuracy });
+      },
+      (err) => {
+        console.warn("GPS failed on map refresh, falling back to IP:", err);
+        fetchIPLocation();
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [setCoordinates, setLocationName]);
 
   if (!coordinates) return null;
 
@@ -251,6 +377,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
   const pulseIcon = makePulseIcon(color);
 
   const isDark = theme === 'dark';
+  const aqiTextColor = getAqiTextColor(aqi, !isDark);
 
   // Theme-adaptive styles for the white Google Maps controls
   const cardBg      = isDark ? 'rgba(30,30,30,0.97)'  : '#fff';
@@ -273,7 +400,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           </svg>
           <span className="map-floating-title-text" style={{ color: cardText }}>
-            Air Quality Map — <span style={{ color }}>{city}</span>
+            Air Quality Map — <span style={{ color: aqiTextColor }}>{city}</span>
           </span>
           {accuracy && (
             <span style={{
@@ -291,7 +418,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
             </span>
           )}
         </div>
-        <div className="map-floating-aqi" style={{ color, borderLeft: `1px solid ${dividerColor}` }}>
+        <div className="map-floating-aqi" style={{ color: aqiTextColor, borderLeft: `1px solid ${dividerColor}` }}>
           AQI {aqi} · <span style={{ color: mutedText, fontWeight: 500 }}>{getAqiLabel(aqi)}</span>
         </div>
       </div>
@@ -299,19 +426,22 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
       {/* ── Collapsible Legend Pill (Left Panel) ── */}
       <div className={`map-legend-container ${legendOpen ? 'open' : ''}`}>
         {!legendOpen ? (
-          <button className="map-legend-pill glassmorphism-dark" onClick={() => setLegendOpen(true)}>
+          <button
+            className="map-legend-pill glassmorphism-dark"
+            onClick={(e) => { e.stopPropagation(); setLegendOpen(true); }}
+          >
             <span style={{ marginRight: '6px' }}>ℹ️</span> Legend
           </button>
         ) : (
           <div className="map-legend-card glassmorphism-dark">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <span style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', color: '#e8e8e8' }}>AQI LEGEND</span>
-              <button onClick={() => setLegendOpen(false)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px' }}>×</button>
+              <button onClick={(e) => { e.stopPropagation(); setLegendOpen(false); }} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '18px' }}>×</button>
             </div>
             
             <div className="legend-current" style={{ marginBottom: '12px' }}>
               <div style={{ fontSize: '11px', color: '#aaa', textTransform: 'uppercase' }}>Your AQI</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color }}>{aqi} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>· {getAqiLabel(aqi)}</span></div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: aqiTextColor }}>{aqi} <span style={{ fontSize: '12px', fontWeight: 'normal' }}>· {getAqiLabel(aqi)}</span></div>
             </div>
 
             <div className="legend-scale">
@@ -337,8 +467,8 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
       <button
         className={`map-layer-btn ${showLayerMenu ? 'active' : ''} glassmorphism-dark`}
         style={{ position: 'absolute', bottom: '80px', right: '12px', zIndex: 1000, width: 'auto', padding: '9px 12px', color: '#e8e8e8', border: '1px solid rgba(255,255,255,0.1)' }}
-        onClick={() => setShowLayerMenu(!showLayerMenu)}
-        title="Maps &amp; Overlays"
+        onClick={(e) => { e.stopPropagation(); setShowLayerMenu(!showLayerMenu); }}
+        title="Maps & Overlays"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
@@ -348,15 +478,15 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
       </button>
 
       {/* ── Layer Menu Card (Slide-In) ── */}
-      <div className={`custom-layer-card glassmorphism-dark ${showLayerMenu ? 'open' : ''}`}>
+      <div className={`custom-layer-card glassmorphism-dark ${showLayerMenu ? 'open' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: `1px solid rgba(255,255,255,0.1)`, paddingBottom: '10px' }}>
-          <h4 style={{ fontSize: '14px', margin: 0, fontWeight: 700, letterSpacing: '0.3px', color: '#e8e8e8' }}>Map Layers</h4>
-          <button onClick={() => setShowLayerMenu(false)} style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px' }}>×</button>
+          <h4 className="layer-card-title" style={{ fontSize: '14px', margin: 0, fontWeight: 700, letterSpacing: '0.3px', color: '#e8e8e8' }}>Map Layers</h4>
+          <button onClick={(e) => { e.stopPropagation(); setShowLayerMenu(false); }} style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '20px' }}>×</button>
         </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {/* Base Maps */}
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Base Map</div>
+            <div className="layer-section-title" style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Base Map</div>
             {[
               { id: 'Map',       icon: 'map',                label: 'Street Map' },
               { id: 'Satellite', icon: 'satellite-in-orbit', label: 'Satellite'  },
@@ -372,7 +502,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
             ))}
 
             <hr style={{ border: 0, borderTop: `1px solid rgba(255,255,255,0.1)`, margin: '6px 0' }} />
-            <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Overlays</div>
+            <div className="layer-section-title" style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: '4px' }}>Overlays</div>
 
             {[
               { id: 'cities',  icon: 'city',        label: 'City Markers',  state: showCities,  setter: setShowCities  },
@@ -391,7 +521,7 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
       {/* ── My Location button ── */}
       <button
         className={`map-recenter-btn ${offCenter ? 'visible' : ''}`}
-        onClick={() => window.__mapFlyHome?.()}
+        onClick={(e) => { e.stopPropagation(); flyHomeRef.current?.(); }}
         title="Fly back to my location"
         aria-label="Fly back to my location"
         style={{ background: cardBg, color: isDark ? '#7dd3fc' : '#1a73e8', boxShadow: cardShadow }}
@@ -403,6 +533,11 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         </svg>
         My Location
       </button>
+
+      {/* RefreshControl lives OUTSIDE MapContainer so its clicks never
+          reach Leaflet's map-click handler at all. CSS positions it
+          absolutely within .map-page-full (position:relative). */}
+      <RefreshControl onRefresh={handleRefreshLocation} />
 
       {/* ── Leaflet map ── */}
       <MapContainer
@@ -421,26 +556,22 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         {baseMap === 'Dark'      && <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" subdomains="abcd" attribution="&copy; CartoDB" maxZoom={19} />}
         {baseMap === 'Light'     && <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" subdomains="abcd" attribution="&copy; CartoDB" maxZoom={19} />}
 
-        {/* Global AQI tile overlay (WAQI) - Requires REACT_APP_WAQI_TOKEN in .env */}
         {waqiLayer && process.env.REACT_APP_WAQI_TOKEN && (
-          <TileLayer 
-            url={`https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${process.env.REACT_APP_WAQI_TOKEN}`} 
-            attribution="&copy; WAQI" 
-            opacity={0.7} 
-            zIndex={10} 
+          <TileLayer
+            url={`https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${process.env.REACT_APP_WAQI_TOKEN}`}
+            attribution="&copy; WAQI" opacity={0.7} zIndex={10}
           />
         )}
 
-        {/* Working overlays from Open-Meteo (free) */}
-        <PopularLocationsAQI show={showCities} refreshKey={refreshKey} />
+        <PopularLocationsAQI
+          show={showCities} refreshKey={refreshKey}
+          setCoordinates={setCoordinates} setLocationName={setLocationName}
+        />
         <TemperatureLayer show={tempLayer} refreshKey={refreshKey} />
-
-        {/* Auto-fly to user location whenever coordinates change */}
         <FlyToOnMount lat={lat} lon={lon} />
 
-        {/* Controls */}
-        <RecenterControl lat={lat} lon={lon} onOffCenter={() => setOffCenter(true)} onBackCenter={() => setOffCenter(false)} />
-        <RefreshControl onRefresh={() => setRefreshKey(k => k + 1)} />
+        {/* Controls that NEED useMap stay inside MapContainer */}
+        <RecenterControl lat={lat} lon={lon} flyHomeRef={flyHomeRef} onOffCenter={() => setOffCenter(true)} onBackCenter={() => setOffCenter(false)} />
         <ZoomControls />
         <ClickMapEvent setPopupData={setPopupData} />
         <LegendCollapseHandler legendOpen={legendOpen} setLegendOpen={setLegendOpen} />
@@ -500,7 +631,13 @@ function AQIMap({ coordinates, aqiData, locationName, theme = 'dark' }) {
         )}
 
         {/* Location marker */}
-        <Marker position={[lat, lon]} icon={pulseIcon}>
+        <Marker 
+          position={[lat, lon]} 
+          icon={pulseIcon}
+          draggable={true}
+          eventHandlers={eventHandlers}
+          ref={markerRef}
+        >
           <Popup className="dark-popup">
             <div className="aqi-popup-inner" style={{ padding: '4px' }}>
               <div style={{ fontSize: '11px', color: '#aaa', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{city}</div>

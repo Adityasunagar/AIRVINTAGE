@@ -75,6 +75,10 @@ backend/app/model/model_train/
 # API response caches and sample outputs (generated at runtime)
 backend/scripts/weather_cache_sample.json
 backend/scripts/output_sample.json
+*.db
+*.sqlite
+*.sqlite3
+
 
 # ══════════════════════════════════════════════
 #  ENVIRONMENT & SECRETS

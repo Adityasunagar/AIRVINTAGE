@@ -11,7 +11,7 @@ const ForecastCard = ({ lat, lon, onClick }) => {
     const fetchForecast = async () => {
       setLoading(true);
       try {
-        const baseUrl = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
+        const baseUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
         const response = await fetch(`${baseUrl}/forecast`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

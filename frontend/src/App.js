@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import "./App.css";
 import LocationDetector from "./components/LocationDetector";
 import WeatherCard from "./components/WeatherCard";
@@ -64,14 +64,14 @@ function AppInner() {
   const [lastUpdated, setLastUpdated]   = useState(null);
   const [showDetector, setShowDetector] = useState(false);
 
-  // Derive "current page" from the URL path for the Navbar active state
-  const currentPage = location.pathname.split("/")[1] || "dashboard";
+  // Derive "current page" from the URL path — used internally for Navbar active state detection via useLocation()
+  // const currentPage = location.pathname.split("/")[1] || "dashboard";
 
   const fetchData = useCallback(async (coords) => {
     if (!coords) return;
     setLoading(true);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
       const resp = await fetch(`${apiUrl}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,8 +118,6 @@ function AppInner() {
 
       {/* ── Persistent Navbar ── */}
       <Navbar
-        currentPage={currentPage}
-        setCurrentPage={(page) => navigate(page === "dashboard" ? "/" : `/${page}`)}
         locationName={locationName}
         theme={theme}
         setTheme={setTheme}
@@ -230,6 +228,8 @@ function AppInner() {
                 aqiData={aqiData}
                 locationName={locationName}
                 theme={theme}
+                setCoordinates={setCoordinates}
+                setLocationName={setLocationName}
               />
             </div>
           }
@@ -285,7 +285,7 @@ function AppInner() {
         />
 
         {/* Fallback — redirect unknown paths to dashboard */}
-        <Route path="*" element={<></>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );

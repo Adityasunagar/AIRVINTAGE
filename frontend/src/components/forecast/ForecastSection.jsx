@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { CloudSun } from 'lucide-react';
 import WeatherIcon from './WeatherIcon';
 import TrendChart from './TrendChart';
 
@@ -45,7 +46,7 @@ const ForecastSection = ({ lat, lon }) => {
       setLoading(true);
       setError(null);
       try {
-        const baseUrl = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
+        const baseUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
         const response = await fetch(`${baseUrl}/forecast`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -95,14 +96,14 @@ const ForecastSection = ({ lat, lon }) => {
   if (error) {
     return (
       <div className="panel" style={{ padding: '32px', textAlign: 'center' }}>
-        <div style={{ fontSize: '36px', marginBottom: '12px' }}>⛅</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><CloudSun size={48} style={{ color: 'var(--text-3)' }} /></div>
         <h3 style={{ color: 'var(--text-1)', margin: '0 0 8px' }}>Forecast Unavailable</h3>
         <p style={{ color: 'var(--text-3)', fontSize: '14px', margin: '0 0 20px' }}>{error}</p>
         <button
           onClick={() => {
             setError(null);
             setLoading(true);
-            const base = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://127.0.0.1:8000');
+            const base = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
             fetch(`${base}/forecast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lon }) })
               .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
               .then(result => { if (!result?.hourly) throw new Error("Invalid data"); setData(result); setLoading(false); })
@@ -170,7 +171,7 @@ const ForecastSection = ({ lat, lon }) => {
       </div>
 
       {/* Day Grid — flex, fills full width, no scrolling */}
-      <div style={{ 
+      <div className="forecast-day-grid" style={{ 
         display: 'flex',
         gap: '10px',
         width: '100%'
@@ -188,6 +189,7 @@ const ForecastSection = ({ lat, lon }) => {
           return (
             <div
               key={day.date}
+              className={`forecast-section-day-card ${isActive ? 'active' : ''}`}
               onClick={() => setSelectedDayIdx(idx)}
               style={{
                 flex: 1,
@@ -245,6 +247,7 @@ const ForecastSection = ({ lat, lon }) => {
             {currentTab.label}
           </h3>
           
+          {activeTab === 'overview' && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <div style={{
               width: '36px', height: '20px', background: feelsLike ? '#3b82f6' : 'var(--panel-sep)', 
@@ -258,6 +261,7 @@ const ForecastSection = ({ lat, lon }) => {
             <span style={{ fontSize: '12px', color: 'var(--text-2)', fontWeight: '500' }}>Feels like</span>
             <input type="checkbox" checked={feelsLike} onChange={() => setFeelsLike(!feelsLike)} style={{ display: 'none' }} />
           </label>
+          )}
         </div>
 
         <TrendChart 

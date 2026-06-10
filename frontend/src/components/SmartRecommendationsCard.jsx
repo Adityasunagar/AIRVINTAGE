@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSmartRecommendations } from "../hooks/useSmartRecommendations";
+import { ClipboardList, Cpu, Shield, Wind, Flame, Snowflake, Sun, CloudLightning, CloudRain, Sparkles } from "lucide-react";
 
 // Advice sentences keyed to score range
 function getAdviceText(score, category) {
@@ -8,6 +9,21 @@ function getAdviceText(score, category) {
   if (score >= 5) return "Moderate outdoor suitability. Limit prolonged exposure and stay hydrated.";
   if (score >= 3) return "Conditions are challenging. Outdoor activity not recommended for sensitive groups.";
   return "Unsafe outdoor conditions. Stay indoors and keep windows closed.";
+}
+
+// Map emoji icons to premium Lucide vector components
+function getAlertIcon(iconEmoji) {
+  switch (iconEmoji) {
+    case '😷': return <Shield size={12} />;
+    case '🌬️': return <Wind size={12} />;
+    case '🥵': return <Flame size={12} />;
+    case '🥶': return <Snowflake size={12} />;
+    case '😎': return <Sun size={12} />;
+    case '⛈️': return <CloudLightning size={12} />;
+    case '☔': return <CloudRain size={12} />;
+    case '✨': return <Sparkles size={12} />;
+    default: return <Sparkles size={12} />;
+  }
 }
 
 // Map backend model keys → human-readable display info
@@ -27,7 +43,6 @@ function getModelInfo(aqiData) {
   const key = aqiData.model || "air_weather";
   return MODEL_INFO_MAP[key] || { name: key, algo: key, confidence: 85 };
 }
-
 
 const ALERT_TYPE_STYLES = {
   danger:  { bg: "rgba(239,68,68,0.15)",   border: "rgba(239,68,68,0.4)",   color: "var(--danger)" },
@@ -111,7 +126,9 @@ export default function SmartRecommendationsCard({ aqiData, weatherData }) {
         <div className="smart-rec-right">
           {/* Today's Advice */}
           <div className="rec-advice-block">
-            <div className="rec-advice-label">📋 Today's Advice</div>
+            <div className="rec-advice-label" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <ClipboardList size={14} style={{ color: "var(--accent)" }} /> Today's Advice
+            </div>
             <p className="rec-advice-text">{advice}</p>
             {explanation && reasons_visible(explanation) && (
               <p className="rec-explanation">{explanation}</p>
@@ -127,10 +144,12 @@ export default function SmartRecommendationsCard({ aqiData, weatherData }) {
                   <div
                     key={alert.id}
                     className="alert-pill"
-                    style={{ background: st.bg, border: `1px solid ${st.border}`, color: st.color }}
+                    style={{ background: st.bg, border: `1px solid ${st.border}`, color: st.color, display: "inline-flex", alignItems: "center", gap: "6px" }}
                     title={alert.message}
                   >
-                    <span className="alert-pill-icon">{alert.icon}</span>
+                    <span className="alert-pill-icon" style={{ display: "flex", alignItems: "center" }}>
+                      {getAlertIcon(alert.icon)}
+                    </span>
                     <span className="alert-pill-label">{alert.title}</span>
                   </div>
                 );
@@ -141,8 +160,8 @@ export default function SmartRecommendationsCard({ aqiData, weatherData }) {
       </div>
 
       {/* Model badge strip */}
-      <div className="model-badge-strip">
-        <span className="model-badge-icon">🤖</span>
+      <div className="model-badge-strip" style={{ display: "flex", alignItems: "center" }}>
+        <Cpu size={12} style={{ color: "var(--accent)", marginRight: "6px", flexShrink: 0 }} />
         <span className="model-badge-text">
           Model: <strong>{model.algo}</strong>
         </span>

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import logo from "../assets/logo.svg";
 
 const NAV_LINKS = [
   { path: "/",        label: "Dashboard" },
@@ -35,7 +34,20 @@ function Navbar({ locationName, theme, setTheme, onRefresh, loading, lastUpdated
     <nav className="navbar">
       {/* Brand */}
       <div className="nav-logo" onClick={() => go("/")} style={{ cursor: "pointer" }}>
-        <img src={logo} alt="AirVintage logo" className="av-logo-img" />
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" className="av-logo-svg">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40">
+              <stop offset="0%" stopColor="var(--accent)" />
+              <stop offset="100%" stopColor="var(--accent-2)" />
+            </linearGradient>
+          </defs>
+          {/* The 'V' shape (exact symmetric inverse of the A) */}
+          <path d="M12 10L20 30L28 10" stroke="url(#logoGrad)" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round"/>
+          {/* The 'A' shape */}
+          <path d="M12 28L20 8L28 28" stroke="url(#logoGrad)" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round"/>
+          {/* The curved crossbar */}
+          <path d="M10 24Q20 18 30 24" stroke="url(#logoGrad)" strokeWidth="2.2" strokeLinecap="round" strokeOpacity="0.7"/>
+        </svg>
         <span className="nav-logo-text">AirVintage</span>
         <span className="nav-badge">BETA</span>
       </div>

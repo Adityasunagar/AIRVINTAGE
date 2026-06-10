@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { AlertTriangle } from "lucide-react";
 
 const FALLBACK_IMAGES = [
   "https://picsum.photos/id/10/800/450",
@@ -30,7 +31,7 @@ export default function NewsDetail() {
 
       // 2. Fallback: fetch from backend cache
       try {
-        const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+        const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
         const res = await fetch(`${apiUrl}/news/${id}`);
         if (!res.ok) throw new Error(res.status === 404
           ? "Article not found. Please go back and open it from the news list."
@@ -68,7 +69,7 @@ export default function NewsDetail() {
           ← Back to News
         </button>
         <div className="nd-error-box">
-          <span style={{ fontSize: 48 }}>⚠️</span>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><AlertTriangle size={48} style={{ color: '#fb923c' }} /></div>
           <h2>Could not load article</h2>
           <p>{error}</p>
           <button className="nd-back-btn" onClick={() => navigate("/news")}>

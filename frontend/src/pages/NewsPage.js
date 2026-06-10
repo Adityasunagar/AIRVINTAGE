@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { AlertTriangle } from "lucide-react";
 
 const NewsPage = ({ theme, locationName }) => {
   const localCity = locationName?.city;
@@ -22,7 +23,7 @@ const NewsPage = ({ theme, locationName }) => {
     setArticleContent(null);
     
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
       const res = await fetch(`${apiUrl}/article?url=${encodeURIComponent(url)}`);
       if (res.ok) {
          const data = await res.json();
@@ -49,7 +50,7 @@ const NewsPage = ({ theme, locationName }) => {
     setError(null);
     console.log(`🔄 [NewsPage] Fetching ${selectedRegion} news...`);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
       const response = await fetch(`${apiUrl}/news?region=${selectedRegion}`);
       console.log(`📊 API Response Status: ${response.status}`);
       
@@ -156,7 +157,9 @@ const NewsPage = ({ theme, locationName }) => {
       ) : error ? (
         <div className="news-grid">
           <div className="news-error">
-            <div className="error-icon">⚠️</div>
+            <div className="error-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+              <AlertTriangle size={32} style={{ color: '#fb923c' }} />
+            </div>
             <h3>Unable to Load News</h3>
             <p>{error}</p>
             <button 

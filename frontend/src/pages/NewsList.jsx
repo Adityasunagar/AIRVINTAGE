@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { MapPin, Globe, AlertTriangle, Newspaper } from "lucide-react";
 
 const FALLBACK_IMAGES = [
   "https://picsum.photos/id/10/600/400",
@@ -101,7 +102,7 @@ export default function NewsList({ locationName }) {
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+      const apiUrl = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:8000`;
       const res  = await fetch(`${apiUrl}/news?region=${encodeURIComponent(r)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -131,8 +132,8 @@ export default function NewsList({ locationName }) {
   };
 
   const tabs = [
-    { id: "india", label: "🇮🇳 India" },
-    { id: "world", label: "🌍 World" },
+    { id: "india", label: "India", icon: <MapPin size={14} /> },
+    { id: "world", label: "World", icon: <Globe size={14} /> },
   ];
 
   const filteredNews = news.filter((article) => {
@@ -159,7 +160,9 @@ export default function NewsList({ locationName }) {
               key={t.id}
               className={`nl-tab${region === t.id ? " active" : ""}`}
               onClick={() => setRegion(t.id)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
             >
+              {t.icon}
               {t.label}
             </button>
           ))}
@@ -215,14 +218,14 @@ export default function NewsList({ locationName }) {
         <NewsListSkeleton />
       ) : error && filteredNews.length === 0 ? (
         <div className="nl-state-box">
-          <span className="nl-state-icon">⚠️</span>
+          <span className="nl-state-icon"><AlertTriangle size={32} style={{ color: "#fb923c" }} /></span>
           <h3>Unable to load news</h3>
           <p>{error}</p>
           <button className="nl-retry-btn" onClick={() => fetchNews(region)}>Try Again</button>
         </div>
       ) : filteredNews.length === 0 ? (
         <div className="nl-state-box">
-          <span className="nl-state-icon">📰</span>
+          <span className="nl-state-icon"><Newspaper size={32} style={{ color: "var(--text-3)" }} /></span>
           <h3>No articles found</h3>
           <p>{news.length > 0 ? "Try adjusting your search or category filters." : "Try a different region or check back shortly."}</p>
           {news.length > 0 ? (
@@ -266,13 +269,16 @@ export default function NewsList({ locationName }) {
                 <div className="nl-card-meta">
                   {article.source && <span className="nl-source">{article.source}</span>}
                   {article.source && article.pubDate && <span className="nl-dot">·</span>}
-                  {article.pubDate && (
-                    <span className="nl-date">
-                      {new Date(article.pubDate).toLocaleDateString("en-US", {
-                        month: "short", day: "numeric", year: "numeric",
-                      })}
-                    </span>
-                  )}
+                  {article.pubDate && (() => {
+                    const d = new Date(article.pubDate);
+                    return !isNaN(d.getTime()) ? (
+                      <span className="nl-date">
+                        {d.toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}
+                      </span>
+                    ) : null;
+                  })()}
                 </div>
 
                 <h2 className="nl-card-title">{article.title}</h2>
